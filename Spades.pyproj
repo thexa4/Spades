@@ -19,6 +19,7 @@
     <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="bids.py" />
     <Compile Include="braindead_player.py" />
     <Compile Include="card.py" />
     <Compile Include="game_manager.py" />
@@ -26,6 +27,12 @@
     <Compile Include="i_player.py" />
     <Compile Include="max\base_player.py" />
     <Compile Include="max\game_state.py" />
+    <Compile Include="max\model.py" />
+    <Compile Include="max\predictor.py" />
+    <Compile Include="max\tensor_player.py" />
+    <Compile Include="max\trainer.py" />
+    <Compile Include="relative_data.py" />
+    <Compile Include="score.py" />
     <Compile Include="trick.py" />
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,6 @@
-import tf.train.Example
-import tf.train.Feature
+import tensorflow as tf
 
-class PlayerState
+class PlayerState:
 	def __init__(self):
 		self.tricks = 0
 		self.bid = -1
