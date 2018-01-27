@@ -8,7 +8,8 @@ class BasePlayer(IPlayer):
         self.seen = set()
         self.full_deck = set()
         self.bids = []
-        self.tricks = []
+        self.tricksWon = [0,0,0,0]
+        self.empty_suits = [[],[],[],[]]
         for suit_id in range(4):
             for number_id in range(13):
                 self.full_deck.add(Card(suit_id, number_id))
@@ -76,7 +77,7 @@ class BasePlayer(IPlayer):
 
         bids: a dict containing all bids, with keys 0-3 (player_id) and values 0-13 or "B" for Blind Nill
         """
-        bids = map(lambda x: 14 if x == "B" else x, bids)
+        self.bids = map(lambda x: 14 if x == "B" else x, bids)
 
     def announce_trick(self, trick):
         """"
@@ -85,7 +86,10 @@ class BasePlayer(IPlayer):
         trick: a Trick object with the cards played
         """
         self.seen.update(trick.cards)
-        pass
+        for i in range(4):
+            if(trick.get_card_played_by(i).suit != trick.get_suit):
+                self.empty_suits[i][trick.get_suit] = True;
+        self.tricks[trick.get_winner] = self.tricks[trick.get_winner] + 1
 
     def announce_score(self, score):
         """"
@@ -95,7 +99,6 @@ class BasePlayer(IPlayer):
         """
         self.score = score[self.team_id]
         self.opponent_score = score[1 - self.team_id]
-        pass
 
     def announce_ids(self, player_id, teammate_id, team_id):
         """"
@@ -109,4 +112,3 @@ class BasePlayer(IPlayer):
         self.player_id = player_id
         self.teammate_id = teammate_id
         self.team_id = team_id
-        pass

@@ -26,6 +26,10 @@ class Trick:
 			return self.cards[0].suit
 		return None
 
+	def get_card_played_by(self, player_id):
+		"""Return the card that was played by given player."""
+		return self.cards[self.played_by.index(player_id)]
+
 	def get_winner(self):
 		""""Return the player id of the player currently winning trick."""
 		winning_card = None
