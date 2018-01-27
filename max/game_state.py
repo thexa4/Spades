@@ -49,6 +49,7 @@ class GameState:
 			"tricks": [self.me.tricks, self.left.tricks, self.partner.tricks, self.right.tricks],
 			"scores": [self.my_score, self.opponent_score],
 			"bags": [self.my_score % 10, self.opponent_score % 10],
+			"suits_empty": self.me.empty_suits + self.left.empty_suits + self.partner.empty_suits + self.right.empty_suits,
 		}
 
 	def to_example(self, label):
