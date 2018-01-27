@@ -1,20 +1,20 @@
 import tf.train.Example
 import tf.train.Feature
 
-class player_state:
+class PlayerState
 	def __init__(self):
 		self.tricks = 0
 		self.bid = -1
 		self.empty_suits = [0, 0, 0, 0]
 
-class game_state:
+class GameState:
 	def __init__(self, hand, seen, scores, tricks, bids, empty_suits):
 		self.hand = [0] * 52
 		self.seen = [0] * 52
-		self.partner = player_state()
-		self.me = player_state()
-		self.left = player_state()
-		self.right = player_state()
+		self.partner = PlayerState()
+		self.me = PlayerState()
+		self.left = PlayerState()
+		self.right = PlayerState()
 		self.my_score = 0
 		self.opponent_score = 0
 
@@ -54,7 +54,9 @@ class game_state:
 	def to_example(self, label):
 		features = self.to_features()
 		result = {
-			#"label": tf.train.
+			"label": tf.train.Feature(float_list=[label]),
 		}
-		#for key in features.keys:
+		for key in features.keys:
+			result[key] = tf.train.Feature(float_list=features[key])
 
+		return tf.train.Example(features=tf.train.Features(feature=features))
