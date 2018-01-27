@@ -102,3 +102,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# vs studio
+/.vs/
