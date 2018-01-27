@@ -25,6 +25,7 @@
     <Compile Include="game_runner.py" />
     <Compile Include="i_player.py" />
     <Compile Include="max\base_player.py" />
+    <Compile Include="max\game_state.py" />
     <Compile Include="trick.py" />
   </ItemGroup>
   <ItemGroup>
