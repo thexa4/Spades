@@ -77,7 +77,7 @@ class BasePlayer(IPlayer):
 
         bids: a dict containing all bids, with keys 0-3 (player_id) and values 0-13 or "B" for Blind Nill
         """
-        self.bids = map(lambda x: 14 if x == "B" else x, bids)
+        self.bids = [14 if bids[x] == "B" else 0 if bids[x] == "N" else int(bids[x]) for x in range(4)]
 
     def announce_trick(self, trick):
         """"

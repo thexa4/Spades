@@ -31,6 +31,9 @@
     <Compile Include="max\predictor.py" />
     <Compile Include="max\tensor_player.py" />
     <Compile Include="max\trainer.py" />
+    <Compile Include="max\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="relative_data.py" />
     <Compile Include="score.py" />
     <Compile Include="trick.py" />

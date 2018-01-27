@@ -5,8 +5,8 @@ class RelativeData:
 
 	def __init__(self, reference_id=0):
 		self.reference_id = reference_id
-		self.data = {}
 		self.data_size = 4
+		self.data = {}
 
 	def relative_to_global(self, player_id):
 		return (player_id - self.reference_id) % self.data_size
@@ -24,7 +24,7 @@ class RelativeData:
 		if not isinstance(i, int):
 			raise ValueError("Expected int, got " + str(type(i)))
 		if i >= self.data_size or i < 0:
-			raise KeyError("Key must be in range 0 to " + str(self.data_size-1))
+			raise KeyError("Key " + str(i) + " must be in range 0 to " + str(self.data_size-1))
 		global_id = self.relative_to_global(i)
 		return self.data[global_id]
 
