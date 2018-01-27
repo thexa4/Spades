@@ -1,7 +1,7 @@
 import tf.train.Example
 import tf.train.Feature
 
-class PlayerState
+class PlayerState:
 	def __init__(self):
 		self.tricks = 0
 		self.bid = -1
