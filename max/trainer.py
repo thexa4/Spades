@@ -9,7 +9,7 @@ class Trainer:
 			),
 			params = {
 				'size': 12,
-				'regularizer': 0.001
+				'regularizer': 0.001,
 				'numbers_weight': 0.01,
 				'learnrate': 0.003,
 			},
