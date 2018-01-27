@@ -1,7 +1,6 @@
 import random
 import model
-import tf.estimator.Estimator
-import tf.learn.RunConfig
+import tensorflow as tf
 
 class Predictor:
 	def __init__(self, model_dir):
