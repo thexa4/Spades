@@ -88,8 +88,9 @@ class BasePlayer(IPlayer):
         self.seen.update(trick.cards)
         for i in range(4):
             if(trick.get_card_played_by(i).suit != trick.get_suit):
-                self.empty_suits[i][trick.get_suit] = True;
-        self.tricks[trick.get_winner] = self.tricks[trick.get_winner] + 1
+                self.empty_suits[i][trick.get_suit] = True
+        winner = trick.get_winner()
+        self.tricks[winner] = self.tricks[winner] + 1
 
     def announce_score(self, score):
         """"
@@ -97,8 +98,8 @@ class BasePlayer(IPlayer):
 
         score: a dict containing the scores of each team (keys 0 and 1)
         """
-        self.score = score[self.team_id]
-        self.opponent_score = score[1 - self.team_id]
+        self.score = score[0]
+        self.opponent_score = score[1]
 
     def announce_ids(self, player_id, teammate_id, team_id):
         """"
