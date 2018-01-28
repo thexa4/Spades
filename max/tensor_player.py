@@ -49,10 +49,24 @@ class TensorPlayer(BasePlayer):
         return cards[TensorPlayer.weighted_choice_sub(weights)]
  
     def weighted_choice_sub(weights):
-        rnd = random.random() * sum(weights)
-        for i, w in enumerate(weights):
+        offset = 9999999
+        maxval = -9999999
+        for w in weights:
+                if w < offset:
+                        offset = w
+                if w > maxval:
+                        maxval = w
+        
+        scaled = list(map(lambda x: (x - offset) / (maxval - offset + 0.00001) + 0.01, weights))
+        rnd = random.random() * sum(scaled)
+        for i, w in enumerate(scaled):
+                
             rnd -= w
-            if rnd < 0:
+            if rnd <= 0:
                 return i
+
+        print(rnd)
+        print(weights)
+        print(scaled)
       
 

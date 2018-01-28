@@ -9,7 +9,7 @@ class BasePlayer(IPlayer):
         self.full_deck = set()
         self.bids = []
         self.tricksWon = [0,0,0,0]
-        self.empty_suits = [[],[],[],[]]
+        self.empty_suits = [[0,0,0,0]] * 4
         for suit_id in range(4):
             for number_id in range(13):
                 self.full_deck.add(Card(suit_id, number_id))
@@ -85,12 +85,12 @@ class BasePlayer(IPlayer):
 
         trick: a Trick object with the cards played
         """
-        self.seen.update(trick.cards)
+        self.seen.update(trick.cards.values())
         for i in range(4):
-            if(trick.get_card_played_by(i).suit != trick.get_suit):
-                self.empty_suits[i][trick.get_suit] = True
+            if(trick[i].suit != trick.suit_id):
+                self.empty_suits[i][trick.suit_id] = True
         winner = trick.get_winner()
-        self.tricks[winner] = self.tricks[winner] + 1
+        self.tricksWon[winner] = self.tricksWon[winner] + 1
 
     def announce_score(self, score):
         """"
