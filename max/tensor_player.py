@@ -30,7 +30,7 @@ class TensorPlayer(BasePlayer):
         trick: a Trick object with the cards played so far
         return value: a Card object present in your hand
         """
-        self.seen.update(trick.cards)
+        self.seen.update(trick.cards.values())
                 
         weights = []
         cards = []
@@ -46,7 +46,7 @@ class TensorPlayer(BasePlayer):
             weights.append(delta)
             cards.append(card)
 
-        return cards[get_weighted_random(weights)]
+        return cards[TensorPlayer.weighted_choice_sub(weights)]
  
     def weighted_choice_sub(weights):
         rnd = random.random() * sum(weights)

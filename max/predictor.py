@@ -1,13 +1,13 @@
 import random
-import max.model
+from max.model import Model
 import tensorflow as tf
 
 class Predictor:
 	def __init__(self, model_dir):
 		self.estimator = tf.estimator.Estimator(
-			model_fn = model.create_model,
-			config = tf.learn.RunConfig(
-				model_dir = Model.create_predictor
+			model_fn = Model.create_predictor,
+			config = tf.estimator.RunConfig(
+				model_dir = model_dir
 			),
 			params = {
 				'size': 12,
@@ -15,5 +15,5 @@ class Predictor:
 			},
 		)
 
-	def predict(game_state):
+	def predict(self, game_state):
 		return random.uniform(-200, 130)
