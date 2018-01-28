@@ -12,7 +12,7 @@ class Trick(RelativeData):
 		self.suit = None
 
 	def add_card(self, card, player_id):
-		""""Add a newly played card to the trick."""
+		"""Add a newly played card to the trick."""
 		global_id = self.relative_to_global(player_id)
 		assert len(self.cards) < self.data_size and global_id not in self.cards
 		if len(self.cards) == 0:
@@ -30,7 +30,7 @@ class Trick(RelativeData):
 		return self.cards[self.played_by.index(player_id)]
 
 	def get_winner(self):
-		""""Return the player id of the player currently winning trick."""
+		"""Return the player id of the player currently winning trick."""
 		winning_card = None
 		winning_id = None
 		for global_id in self.cards:
@@ -46,8 +46,8 @@ class Trick(RelativeData):
 	def __str__(self):
 		t = {i: "??" for i in range(4)}
 		for i in range(4):
-			relative_id = self.global_to_relative(i)
 			if i in self.cards:
+				relative_id = self.global_to_relative(i)
 				t[relative_id] = self.cards[i]
 		# card_str = ", ".join([str(i) + ": " + str(t[i]) for i in range(4)])
 		card_str = ", ".join([str(t[i]) for i in range(4)])

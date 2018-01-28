@@ -1,5 +1,5 @@
 import random
-import model
+import max.model
 import tensorflow as tf
 
 class Predictor:

@@ -1,10 +1,13 @@
 """Spades IA"""
+import random
+from max.base_player import BasePlayer
+from max.game_state import GameState
 
 class TensorPlayer(BasePlayer):
     """"Tensor trained player """
 
     def __init__(self, predictor):
-        super().__init__(self)
+        super().__init__()
         self.predictor = predictor
 
     def make_bid(self, bids):
@@ -14,7 +17,7 @@ class TensorPlayer(BasePlayer):
         bids: a dict containing all bids so far, with keys 0-3 (player_id) and values 0-13 or "B" for Blind Nill
         return value: An integer between 0 (a Nill bid) and 13 minus the teammate's bid (inclusive)
         """
-        return randint(0, 13)
+        return random.randint(0, 13)
 
     def get_expected_point_delta(self, state):
         """Get expected point delta from tenser flow AI."""
@@ -36,10 +39,10 @@ class TensorPlayer(BasePlayer):
             state = GameState(hand=hand,            
                     seen=self.seen, 
                     scores=[self.score,self.opponent_score],
-                    tricks=[self.tricks], 
+                    tricks=self.tricksWon, 
                     bids=self.bids, 
-                    empty_suits=[self.empty_suits])
-            delta = get_expected_point_delta(state)
+                    empty_suits=self.empty_suits)
+            delta = self.get_expected_point_delta(state)
             weights.append(delta)
             cards.append(card)
 

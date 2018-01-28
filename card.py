@@ -13,6 +13,9 @@ class Card:
 		self.suit = suits[suit_id]
 		self.number = numbers[number_id]
 
+	def __hash__(self):
+		return hash(int(self))
+
 	def __eq__(self, other):
 		if other is None:
 			return False
