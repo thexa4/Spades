@@ -53,7 +53,13 @@ class GameManager:
 					continue
 			# Hand out the cards to the player and ask for a bid
 			self.players[active_player_id].give_hand(deepcopy(self.hands[active_player_id]))
-			self.bids.add_bid(self.players[active_player_id].make_bid(self.bids.make_copy(active_player_id)), active_player_id)
+			player_bid = self.players[active_player_id].make_bid(self.bids.make_copy(active_player_id))
+			# Make sure the bid is valid: between 0 and 13, and the sum with the teammate's bid does not exceed 13
+			assert 0 <= player_bid <= 13
+			teammate_id = (active_player_id + 2) % 4
+			if teammate_id in self.bids and self.bids[teammate_id] != "N":
+				assert self.bids[(active_player_id + 2) % 4] + player_bid <= 13
+			self.bids.add_bid(player_bid, active_player_id)
 		# When all bids have been made, inform all players about them
 		for i, player in enumerate(self.players):
 			player.announce_bids(self.bids.make_copy(i))
@@ -136,54 +142,47 @@ class GameManager:
 				player.announce_trick(current_trick.make_copy(i))
 		# Handle the scoring
 		for i in [0, 1]:
-			self.award_scores(trick_count, i)
+			self.award_team_score(trick_count, i)
 		# Inform all players about the new score
 		for i, player in enumerate(self.players):
 			player.announce_score(self.score.make_copy(i))
 
-	def award_scores(self, trick_count, team_id):
+	def award_team_score(self, trick_count, team_id):
 		""""Given the bids and a resulting trick count, decide the score for a team."""
+		assert team_id == 0 or team_id == 1
 		gained_score = 0
 		handled = False
 
+		player_1_id = 0 + team_id
+		player_2_id = 2 + team_id
 		# First, handle the situation of a player nilling
-		for i in [0, 2]:
-			nilled = False
-			if self.bids[i + team_id] == 0:
-				nilled = True
-				if trick_count[i + team_id] == 0:
-					gained_score += 50
+		if self.bids.team_has_nill(team_id):
+			for player_id in [player_1_id, player_2_id]:
+				bid = self.bids[player_id]
+				tricks = trick_count[player_id]
+				if bid == "N" or bid == "B":
+					multiplier = 1 + int(bid == "B")
+					if tricks == 0:
+						gained_score += 50 * multiplier
+					else:
+						gained_score -= 50 * multiplier
 				else:
-					gained_score -= 50
-			if self.bids[i + team_id] == _BLIND_NILL_CHARACTER:
-				nilled = True
-				if trick_count[i + team_id] == 0:
-					gained_score += 100
-				else:
-					gained_score -= 100
-			if nilled:
-				handled = True
-				other_bid = self.bids[(2-i) + team_id]
-				# In the insane case of a double Nill
-				if other_bid == 0 or other_bid == _BLIND_NILL_CHARACTER:
-					continue
-				# Handle the contract of the other player solo
-				other_tricks = trick_count[(2-i) + team_id]
-				if other_tricks < other_bid:
-					gained_score -= other_bid * 10
-				else:
-					gained_score += other_bid * 10 + max(0, other_tricks - other_bid)
-
-		# If there was no Nill, handle the scoring normally
-		if not handled:
-			bid = self.bids[0 + team_id] + self.bids[2 + team_id]
-			tricks = trick_count[0 + team_id] + trick_count[2 + team_id]
-			if tricks < bid:
-				gained_score -= bid * 10
+					if bid <= tricks:
+						overtricks = tricks - bid
+						gained_score += 10*bid + overtricks
+					else:
+						gained_score -= 10*bid
+		# If there were no nills on this team, carry on normally
+		else:
+			bid = self.bids.get_team_bid(team_id)[0]
+			tricks = trick_count[player_1_id] + trick_count[player_2_id]
+			if bid <= tricks:
+				overtricks = tricks - bid
+				gained_score += 10 * bid + overtricks
 			else:
-				gained_score += bid * 10 + max(0, tricks - bid)
+				gained_score -= 10 * bid
 
-		# Check for sandbagging
+		# Lastly, check for sandbagging
 		if (self.score[team_id] % 10) + (gained_score % 10) >= 10:
 			gained_score -= 100
 
