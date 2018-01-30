@@ -4,16 +4,19 @@ import tensorflow as tf
 import max.game_state
 import random
 import os
+import shutil
+import datetime
 from max.model import Model
 from max.game_state import GameState
 from max.tensor_player import TensorPlayer
 from max.predictor import Predictor
+from max.random_player import RandomPlayer
 from game_manager import GameManager
 from braindead_player import BraindeadPlayer
 
-def benchmark(path):
+def benchmark(path, player_type):
     t_p = [TensorPlayer(Predictor(path)) for i in range(2)]
-    b_p = [BraindeadPlayer() for i in range(2)]
+    b_p = [player_type() for i in range(2)]
     players = [b_p[0], t_p[0], b_p[1], t_p[1]]
     manager = GameManager(players)
 
@@ -59,8 +62,10 @@ def main():
         print("training " + str(len(trainer.compiled)) + " samples")
         trainer.train()
         print("benchmarking")
-        score = benchmark(train_path)
-        print(score)
+        print("random: " + str(benchmark(train_path, RandomPlayer)))
+        print("braindead: " + str(benchmark(train_path, BraindeadPlayer)))
+        timestamp = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        shutil.copytree(train_path, checkpoint_path + str(timestamp))
         print("-----")
 
 class Trainer:
@@ -71,7 +76,7 @@ class Trainer:
                 model_dir = model_dir,
             ),
             params = {
-                'size': 64,
+                'size': 12,
                 'regularizer': 0.001,
                 'numbers_weight': 0.01,
                 'learnrate': 0.003,
@@ -101,7 +106,7 @@ class Trainer:
         max_size = 2000000
         if len(self.compiled) > max_size:
             excess_elems = len(self.compiled) - max_size
-            del l[:excess_elems]
+            del self.compiled[:excess_elems]
 
     def collect_data(self):
         for e in self.compiled:
@@ -116,7 +121,10 @@ class Trainer:
             "scores": tf.int32,
             "bags": tf.int32,
             "suits_empty": tf.int32,
-        }, tf.int32)
+        }, {
+            "score_delta": tf.int32,
+            "win_chance": tf.int32,
+           })
         data = (tf.data.Dataset.from_generator(self.collect_data, datadesc)
             .cache()
             .repeat()

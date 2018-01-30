@@ -44,14 +44,18 @@ class Model:
 
         dropout = tf.layers.dropout(hidden_layer, training = (mode == tf.estimator.ModeKeys.TRAIN), rate=0.5)
 
-        return tf.multiply(tf.layers.dense(dropout, 1, kernel_regularizer=tf.contrib.layers.l2_regularizer(params['regularizer']), use_bias=True, activation=tf.tanh), 300.0)
+        score_output =  tf.multiply(tf.layers.dense(dropout, 1, kernel_regularizer=tf.contrib.layers.l2_regularizer(params['regularizer']), use_bias=True, activation=tf.tanh), 300.0)
+        win_output =  tf.layers.dense(dropout, 1, kernel_regularizer=tf.contrib.layers.l2_regularizer(params['regularizer']), use_bias=True, activation=tf.sigmoid)
+
+        return (score_output, win_output)
+
 
     def create_predictor(features, mode, params):
 
-        output_layer = Model.create_network(features, mode, params)
+        score_output, win_output = Model.create_network(features, mode, params)
         
         predictions_dict = {
-            "number": output_layer,
+            "number": score_output
         }
 
         return tf.estimator.EstimatorSpec(
@@ -61,9 +65,13 @@ class Model:
         )
 
     def create_trainer(features, labels, mode, params):
-        output_layer = Model.create_network(features, mode, params)
+        score_output = Model.create_network(features, mode, params)
+        win_output = Model.create_network(features, mode, params)
 
-        tf.summary.histogram("number/guessed", output_layer)
+        tf.summary.histogram("number/guessed", score_output)
+        tf.summary.histogram("number/diff", tf.subtract(score_output, labels["score_delta"]))
+        tf.summary.histogram("win/guessed", win_output)
+        tf.summary.histogram("win/diff", tf.subtract(win_output, labels["win_chance"]))
 
         loss = 0
         
@@ -71,13 +79,18 @@ class Model:
         loss += reg_loss
         tf.summary.scalar("loss/regularization", reg_loss)
 
-        target = tf.reshape(labels, tf.shape(output_layer))
-        num_loss = tf.losses.mean_squared_error(target, output_layer) * params['numbers_weight']
+        number_target = tf.reshape(labels["score_delta"], tf.shape(score_output))
+        win_target = tf.reshape(labels["win_chance"], tf.shape(win_output))
+        num_loss = tf.losses.mean_squared_error(number_target, score_output) * params['numbers_weight']
+        win_loss = tf.losses.mean_squared_error(win_target, win_output) * params['win_weight']
         loss += num_loss
+        loss += win_loss
         tf.summary.scalar("loss/numbers", num_loss)
+        tf.summary.scalar("loss/win", win_loss)
 
         predictions_dict = {
-            "number": output_layer
+            "number": score_output,
+            "win": win_output,
         }
 
         tf.summary.scalar("loss/sum", loss)
