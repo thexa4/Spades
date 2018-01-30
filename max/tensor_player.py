@@ -9,6 +9,10 @@ class TensorPlayer(BasePlayer):
     def __init__(self, predictor):
         super().__init__()
         self.predictor = predictor
+        self.debug = False
+        self.trainer = False
+        self.score = 0
+        self.opponent_score = 0
 
     def make_bid(self, bids):
         """
@@ -34,6 +38,7 @@ class TensorPlayer(BasePlayer):
                 
         weights = []
         cards = []
+        states = {}
         for card in valid_cards:
             hand = filter(lambda c: c != card, self.hand)
             state = GameState(hand=hand,            
@@ -42,11 +47,15 @@ class TensorPlayer(BasePlayer):
                     tricks=self.tricksWon, 
                     bids=self.bids, 
                     empty_suits=self.empty_suits)
+            states[card] = state
             delta = self.get_expected_point_delta(state)
             weights.append(delta)
             cards.append(card)
 
-        return cards[TensorPlayer.weighted_choice_sub(weights)]
+        selection = cards[TensorPlayer.weighted_choice_sub(weights)]
+        if self.debug:
+            self.trainer.queue_sample(states[selection])
+        return selection
  
     def weighted_choice_sub(weights):
         offset = 9999999
@@ -69,4 +78,11 @@ class TensorPlayer(BasePlayer):
         print(weights)
         print(scaled)
       
+    def announce_score(self, score):
+        prevdelta = self.score - self.opponent_score
+        self.score = score[0]
+        self.opponent_score = score[1]
+        newdelta = self.score - self.opponent_score
 
+        if self.debug:
+            self.trainer.set_label(newdelta - prevdelta)

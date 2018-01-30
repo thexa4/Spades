@@ -10,7 +10,7 @@ class Predictor:
 				model_dir = model_dir
 			),
 			params = {
-				'size': 12,
+				'size': 64,
 				'regularizer': 0.001
 			},
 		)
