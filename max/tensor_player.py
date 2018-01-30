@@ -17,7 +17,7 @@ class TensorPlayer(BasePlayer):
         bids: a dict containing all bids so far, with keys 0-3 (player_id) and values 0-13 or "B" for Blind Nill
         return value: An integer between 0 (a Nill bid) and 13 minus the teammate's bid (inclusive)
         """
-        return random.randint(0, 13)
+        return random.randint(0, 6)
 
     def get_expected_point_delta(self, state):
         """Get expected point delta from tenser flow AI."""

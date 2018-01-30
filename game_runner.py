@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 from game_manager import GameManager
 from max.tensor_player import TensorPlayer
 from max.predictor import Predictor
