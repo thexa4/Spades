@@ -26,6 +26,8 @@ class RelativeData:
 		if i >= self.data_size or i < 0:
 			raise KeyError("Key must be in range 0 to " + str(self.data_size-1))
 		global_id = self.globalize_id(i)
+		if not global_id in self.data:
+			return None
 		return self.data[global_id]
 
 	def __contains__(self, i):

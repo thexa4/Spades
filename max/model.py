@@ -15,6 +15,7 @@ class Model:
     def create_network(features, mode, params):
 
         batch_size = tf.shape(features['bids'])[0]
+        print(features['bids'])
         bids_hot = tf.reshape(tf.one_hot(
             indices = features['bids'],
             depth = 15,
@@ -40,7 +41,7 @@ class Model:
         inputs = tf.concat([ tf.to_float(features['hand']), tf.to_float(features['seen']), bids_hot, tricks_hot, bags_hot, tf.to_float(features['suits_empty']) ], axis = -1)
         input_layer = tf.reshape(inputs, shape = [batch_size, 15 * 4 + 14 * 4 + 10 * 2 + 52 + 52 + 16])
 
-        hidden_layer = tf.layers.dense(input_layer, params['size'], activation = tf.nn.tanh, kernel_regularizer=tf.contrib.layers.l2_regularizer(params['regularizer']), use_bias=True)
+        hidden_layer = tf.layers.dense(input_layer, 12, activation = tf.nn.tanh, kernel_regularizer=tf.contrib.layers.l2_regularizer(params['regularizer']), use_bias=True)
 
         dropout = tf.layers.dropout(hidden_layer, training = (mode == tf.estimator.ModeKeys.TRAIN), rate=0.5)
 
@@ -55,7 +56,8 @@ class Model:
         score_output, win_output = Model.create_network(features, mode, params)
         
         predictions_dict = {
-            "number": score_output
+            "number": score_output,
+            "win": win_output,
         }
 
         return tf.estimator.EstimatorSpec(
@@ -65,13 +67,12 @@ class Model:
         )
 
     def create_trainer(features, labels, mode, params):
-        score_output = Model.create_network(features, mode, params)
-        win_output = Model.create_network(features, mode, params)
+        score_output, win_output = Model.create_network(features, mode, params)
 
         tf.summary.histogram("number/guessed", score_output)
-        tf.summary.histogram("number/diff", tf.subtract(score_output, labels["score_delta"]))
+        tf.summary.histogram("number/diff", tf.subtract(score_output, tf.to_float(labels["score_delta"])))
         tf.summary.histogram("win/guessed", win_output)
-        tf.summary.histogram("win/diff", tf.subtract(win_output, labels["win_chance"]))
+        tf.summary.histogram("win/diff", tf.subtract(win_output, tf.to_float(labels["win_chance"])))
 
         loss = 0
         

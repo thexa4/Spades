@@ -1,0 +1,21 @@
+#!/usr/bin/python3
+
+import pickle
+import sys
+import random
+
+samples = []
+
+for folder in sys.argv[2:]:
+    print(folder)
+    try:
+        with open(folder + "/samples", 'rb') as fsample:
+            newsamples = pickle.load(fsample)
+            print(len(newsamples))
+            samples += newsamples
+    except Exception as e:
+        print(e)
+print(len(samples))
+random.shuffle(samples)
+with open(sys.argv[1] + "/samples", 'wb') as outsamples:
+    pickle.dump(samples, outsamples)

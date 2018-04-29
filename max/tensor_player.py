@@ -22,12 +22,11 @@ class TensorPlayer(BasePlayer):
         return value: An integer between 0 (a Nill bid) and 13 minus the teammate's bid (inclusive)
         """
         self.bids = [-1 if x not in bids else 14 if bids[x] == "B" else 0 if bids[x] == "N" else int(bids[x]) for x in range(4)]
-        print(self.bids)
         max_bid = 13
-        if bids[2] != -1 and bids[2] != "N" and bids[2] != "B":
+        if bids[2] != None and bids[2] != -1 and bids[2] != "N" and bids[2] != "B":
             max_bid -= bids[2]
 
-        states = {}
+        states = []
         weights = []
 
         for bid in range(0, max_bid + 1):
@@ -38,22 +37,21 @@ class TensorPlayer(BasePlayer):
                     tricks=self.tricksWon, 
                     bids=bids, 
                     empty_suits=self.empty_suits)
-            states[bid] = state
-            chance = self.get_expected_win_chance(state)
-            weights.append(chance)
+            states.append(state)
 
+        weights = self.get_expected_win_chance(states)
         selection = TensorPlayer.weighted_choice_sub(weights)
         if self.debug:
             self.trainer.queue_sample(states[selection])
         return selection
 
-    def get_expected_point_delta(self, state):
+    def get_expected_point_delta(self, states):
         """Get expected point delta from tenser flow AI."""
-        return self.predictor.predict(state)
+        return self.predictor.predict(states)
     
-    def get_expected_win_chance(self, state):
+    def get_expected_win_chance(self, states):
         """Get expected win chance from tenser flow AI."""
-        return self.predictor.predict_win(state)
+        return self.predictor.predict_win(states)
 
     def play_card(self, trick, valid_cards):
         """
@@ -65,6 +63,7 @@ class TensorPlayer(BasePlayer):
         self.seen.update(trick.cards.values())
                 
         weights = []
+        raw_states = []
         cards = []
         states = {}
         for card in valid_cards:
@@ -76,11 +75,15 @@ class TensorPlayer(BasePlayer):
                     bids=self.bids, 
                     empty_suits=self.empty_suits)
             states[card] = state
-            delta = self.get_expected_point_delta(state)
-            weights.append(delta)
+            #delta = self.get_expected_point_delta(state)
+            #weights.append(delta)
             cards.append(card)
-
-        selection = cards[TensorPlayer.weighted_choice_sub(weights)]
+            raw_states.append(state)
+        if len(valid_cards) > 1:
+            weights = self.get_expected_point_delta(raw_states)
+            selection = cards[TensorPlayer.weighted_choice_sub(weights)]
+        else:
+            selection = valid_cards[0]
         if self.debug:
             self.trainer.queue_sample(states[selection])
         return selection

@@ -6,6 +6,7 @@ import random
 import os
 import shutil
 import datetime
+import pickle
 from max.model import Model
 from max.game_state import GameState
 from max.tensor_player import TensorPlayer
@@ -24,7 +25,7 @@ def benchmark(path, player_type):
     t_wins = 0
     delta_total = 0
     delta_count = 0
-    for i in range(1, 10):
+    for i in range(0, 2):
         score = manager.play_game()
         delta_count += 1
         delta_total += score[0]
@@ -42,28 +43,28 @@ def generate_moves(trainer, train_path, checkpoint_paths):
     checkpoint_players = list(map(lambda x: TensorPlayer(Predictor(x)), checkpoint_paths))
     players = [debug_player] + checkpoint_players
     manager = GameManager(players)
-    for i in range(1, 300):
-        if i % 100 == 0:
-            print(i)
+    for i in range(1, 1):
+        print(str(i) + "/10")
         manager.play_game()
 
 def main():
     train_path = "models/latest/"
     checkpoint_path = "models/checkpoints/"
+    
     available_checkpoints = os.listdir(checkpoint_path)
 
     trainer = Trainer(train_path)
 
-    while True:
-        opponents = [checkpoint_path + random.choice(available_checkpoints) for x in range(0,3)]
+    for i in range(0, 1):
+        opponents = [checkpoint_path + random.choice(available_checkpoints + ["0"]) for x in range(0,3)]
         print("generating")
         generate_moves(trainer, train_path, opponents)
 
         print("training " + str(len(trainer.compiled)) + " samples")
         trainer.train()
-        print("benchmarking")
-        print("random: " + str(benchmark(train_path, RandomPlayer)))
-        print("braindead: " + str(benchmark(train_path, BraindeadPlayer)))
+        #print("benchmarking")
+        #print("random: " + str(benchmark(train_path, RandomPlayer)))
+        #print("braindead: " + str(benchmark(train_path, BraindeadPlayer)))
         timestamp = datetime.datetime.now(datetime.timezone.utc).timestamp()
         shutil.copytree(train_path, checkpoint_path + str(timestamp))
         print("-----")
@@ -76,9 +77,9 @@ class Trainer:
                 model_dir = model_dir,
             ),
             params = {
-                'size': 12,
                 'regularizer': 0.001,
                 'numbers_weight': 0.01,
+                'win_weight': 40,
                 'learnrate': 0.003,
             },
         )
@@ -95,6 +96,15 @@ class Trainer:
         self.labels = []
         self.queue = []
         self.compiled = []
+        samplefile = model_dir + "samples"
+        self.model_dir = model_dir
+        try:
+            with open(samplefile, 'rb') as sfile:
+                samples = pickle.load(sfile)
+                self.compiled = samples
+                print(str(len(self.compiled)) + " samples loaded")
+        except Exception as e:
+            print(e)
 
     def queue_sample(self, sample):
         self.queue.append(sample.to_features())
@@ -135,10 +145,18 @@ class Trainer:
         
 
     def train(self):
+        samplefile = self.model_dir + "samples"
+        try:
+            with open(samplefile, 'wb') as sfile:
+                pickle.dump(self.compiled, sfile)
+        except Exception as e:
+            print(e)
+        
         self.estimator.train(
             input_fn = self.input_fn,
             steps = 10000,
         )
+
 
         print("done")
 

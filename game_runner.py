@@ -7,7 +7,7 @@ from max.random_player import RandomPlayer
 from max.predictor import Predictor
 
 def main():
-	t_p = [TensorPlayer(Predictor(None)) for i in range(2)]
+	t_p = [TensorPlayer(Predictor("models/latest/")) for i in range(2)]
 	b_p = [RandomPlayer() for i in range(2)]
 	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 	manager = GameManager(players)
