@@ -1,3 +1,0 @@
-#!/bin/bash
-
-python3 -u ./trainer.py 2>&1 | grep --line-buffered -v IteratorGetNext | grep --line-buffered -v 'Iteration finished.' | grep --line-buffered -v 'contain a QueueRunner.' | grep --line-buffered -v '^$'

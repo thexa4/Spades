@@ -8,7 +8,12 @@ class RandomPlayer(IPlayer):
 		self.hand = cards
 
 	def make_bid(self, bids):
-		return random.randrange(5)
+		max_bid = 13
+		if 2 in bids:
+			if bids[2] != 'N' and bids[2] != 'B':
+				max_bid = 13 - bids[2]
+
+		return random.randrange(max_bid + 1)
 
 	def play_card(self, trick, valid_cards):
 		return random.choice(valid_cards)
