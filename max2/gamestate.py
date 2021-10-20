@@ -169,7 +169,7 @@ class GameState:
             v = inputs[k]
             params[k] = np.expand_dims(v, 0)
 
-        prediction = self.model(params)
+        prediction = self.model(params, training=False)
         
         return {
             'bids': prediction['bid_result'][0, :],
