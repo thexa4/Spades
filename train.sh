@@ -6,7 +6,7 @@ generation="$2"
 padded="$(sed -e :a -e 's/^.\{1,2\}$/0&/;ta' <<<"$generation")"
 cores="64"
 
-for c in $(seq 1 256); do
+for c in $(seq 1 512); do
 	i=$(( r * $cores + c ))
 
 	ipadded="$(sed -e :a -e 's/^.\{1,3\}$/0&/;ta' <<<"$i")"
