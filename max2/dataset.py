@@ -73,7 +73,7 @@ def decode(arr):
     return (inputs, outputs)
 
 def load(files):
-    result = tf.data.FixedLengthRecordDataset(files, size(), num_parallel_reads=8)
+    result = tf.data.FixedLengthRecordDataset(files, size(), num_parallel_reads=8, compression_type='GZIP')
     result = result.map(lambda x: tf.io.decode_raw(x, tf.uint8))
     result = result.batch(64 * 1024)
     result = result.map(decode)

@@ -54,7 +54,7 @@ def main():
 
 	folder = f'max2/data/q{q}/gen{generation:03}/samples'
 	files = os.listdir(folder)
-	files.remove('0001.flat')
+	files.remove('0001.flat.gz')
 	infile = [folder + '/' + f for f in files]
 	
 	batchsize = 48 * 1024
@@ -67,7 +67,7 @@ def main():
 	d = d.batch(batchsize)
 	d = d.prefetch(16)
 
-	v = max2.dataset.load(folder + '/0001.flat')
+	v = max2.dataset.load(folder + '/0001.flat.gz')
 	v = v.batch(batchsize)
 	v = v.cache()
 	
