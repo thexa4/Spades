@@ -23,9 +23,9 @@ class GameState:
             result[i] = 1
         return result
 
-    def sample(options):
+    def sample(self, options):
         if not self.training:
-            return np.argmax(allowed_bids)
+            return np.argmax(options)
 
         positive_options = (np.array(options) + 200.0) / 400.0
         exponentized = np.exp(positive_options / self.temperature)
@@ -111,7 +111,7 @@ class GameState:
 
         prediction = self.compute()
         allowed_preds = [prediction['round' + str(round)][int(card)] for card in valid_cards]
-        chosen = valid_cards[this.sample(allowed_preds)]
+        chosen = valid_cards[self.sample(allowed_preds)]
         self.chosen_cards[round] = int(chosen)
 
         return chosen
