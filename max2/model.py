@@ -55,7 +55,8 @@ def create():
     bid_output = layers.Lambda(lambda x: x * 200)(layers.Dense(14, activation='tanh')(bid_state))
         
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
-    ltsm = layers.Lambda(lambda x: x * 200)(layers.LSTM(52, return_sequences=True)(rounds_stacked))
+    hidden_lstm = layers.LSTM(32, return_sequences=True)(rounds_stacked)
+    ltsm = layers.Lambda(lambda x: x * 200)(layers.LSTM(52, return_sequences=True)(hidden_lstm))
 
     inference_model = keras.Model(inputs=inputs, outputs={'bid_result': bid_output, 'rounds_result': ltsm}, name="spades1")
 

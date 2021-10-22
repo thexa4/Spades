@@ -15,12 +15,24 @@ class GameState:
         self.samples = []
         self.model = model
         self.training = training
+        self.temperature = 1
 
     def thermometer(self, size, n):
         result = [0] * size
         for i in range(n):
             result[i] = 1
         return result
+
+    def sample(options):
+        if not self.training:
+            return np.argmax(allowed_bids)
+
+        positive_options = (np.array(options) + 200.0) / 400.0
+        exponentized = np.exp(positive_options / self.temperature)
+        exp_sum = np.sum(exponentized)
+
+        probabilities = exponentized / exp_sum
+        return np.random.choice(len(probabilities), p=probabilities)
 
     def bid(self, hand, bids, score):
         bidcount = [15,15,15,15]
@@ -52,10 +64,8 @@ class GameState:
                 max_bid = 13 - bids[2]
 
         allowed_bids = prediction['bids'][:(max_bid + 1)]
-        if self.training:
-            self.chosen_bid = np.argmax((np.array(allowed_bids) + 200) * np.random.random_sample(len(allowed_bids)))
-        else:
-            self.chosen_bid = np.argmax(allowed_bids)
+        self.chosen_bid = self.sample(allowed_bids)
+        
         return self.chosen_bid
     
     def store_bids(self, bids):
@@ -101,10 +111,7 @@ class GameState:
 
         prediction = self.compute()
         allowed_preds = [prediction['round' + str(round)][int(card)] for card in valid_cards]
-        if self.training:
-            chosen = valid_cards[np.argmax(allowed_preds)]
-        else:
-            chosen = valid_cards[np.argmax((np.array(allowed_preds) + 200) * np.random.random_sample(len(allowed_preds)))]
+        chosen = valid_cards[this.sample(allowed_preds)]
         self.chosen_cards[round] = int(chosen)
 
         return chosen
