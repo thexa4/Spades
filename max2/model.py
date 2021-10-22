@@ -52,7 +52,8 @@ def create():
         training_inputs[roundname + 'card'] = chosen_card
     training_rounds = layers.Reshape(target_shape=(13,))(layers.Concatenate(axis=1)(training_rounds))
 
-    bid_output = layers.Lambda(lambda x: x * 200)(layers.Dense(14, activation='tanh')(bid_state))
+    bid_hidden = layers.Dense(32, activation='tanh')(bid_state)
+    bid_output = layers.Lambda(lambda x: x * 200)(layers.Dense(14, activation='tanh')(bid_hidden))
         
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
     hidden_lstm = layers.LSTM(32, return_sequences=True)(rounds_stacked)

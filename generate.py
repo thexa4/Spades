@@ -30,7 +30,7 @@ def select_player(generation, models = []):
 def dataset(generation, driver, models, blocks=1, rounds=1):
 	
 	def play_block():
-		training_player = TrainingPlayer(driver)
+		training_player = TrainingPlayer(driver, generation)
 
 		t_p = [select_player(generation, models), training_player]
 		b_p = [select_player(generation, models) for i in range(2)]

@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 from game_manager import GameManager
 from braindead_player import BraindeadPlayer
 from max.tensor_player import TensorPlayer
@@ -12,11 +16,11 @@ import max2.model
 import sys
 
 def main():
-	model = max2.model.load(1, 2)
-	t_p = [InferencePlayer(model), TrainingPlayer(model)]
+	model = max2.model.load(2,3)
+	t_p = [InferencePlayer(model), InferencePlayer(model)]
 	#b_p = [BraindeadPlayer() for i in range(2)]
-	model_prev = max2.model.load(1,1)
-	b_p = [InferencePlayer(model_prev), TrainingPlayer(model_prev)]
+	model_prev = max2.model.load(2,2)
+	b_p = [InferencePlayer(model_prev), InferencePlayer(model_prev)]
 	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 	manager = GameManager(players)
 	rounds = 10

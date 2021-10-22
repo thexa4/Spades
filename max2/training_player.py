@@ -2,15 +2,16 @@ from i_player import IPlayer
 from max2.gamestate import GameState
 
 class TrainingPlayer(IPlayer):
-	""""Constitutes the very bare necessity to be called a player"""
+	""""Collects samples for training"""
 
-	def __init__(self, model):
+	def __init__(self, model, generation):
 		self.state = None
 		self.round = 0
 		self.score = None
 		self.model = model
 		self.samples = []
 		self.scored = False
+		self.generation = generation
 
 	def give_hand(self, cards):
 		self.hand = cards
@@ -18,6 +19,7 @@ class TrainingPlayer(IPlayer):
 	def make_bid(self, bids):
 		self.scored = False
 		self.state = GameState(self.model, training=True)
+		self.state.temperature = 4.0 / self.generation
 		self.round = 0
 		return self.state.bid(self.hand, bids, self.score)
 	def announce_bids(self, bids):
