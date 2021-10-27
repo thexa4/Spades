@@ -16,10 +16,10 @@ import max2.model
 import sys
 
 def main():
-	model = max2.model.load(2,3)
+	model = max2.model.load(2,5)
 	t_p = [InferencePlayer(model), InferencePlayer(model)]
 	#b_p = [BraindeadPlayer() for i in range(2)]
-	model_prev = max2.model.load(2,2)
+	model_prev = max2.model.load(2,4)
 	b_p = [InferencePlayer(model_prev), InferencePlayer(model_prev)]
 	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 	manager = GameManager(players)

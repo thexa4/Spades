@@ -4,7 +4,7 @@ q="$1"
 generation="$2"
 
 padded="$(sed -e :a -e 's/^.\{1,2\}$/0&/;ta' <<<"$generation")"
-cores="${CORES:-64}"
+cores="${CORES:-56}"
 
 python="python3"
 if ! command -v python3 &> /dev/null; then
