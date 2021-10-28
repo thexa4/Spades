@@ -110,7 +110,7 @@ def main():
 	
 	models = []
 	for i in range(1, generation):
-		models.append(max2.model.load(q, generation))
+		models.append(max2.model.load(q, i))
 
 	path = f'max2/data/q{q}/gen{generation:03}/samples/'
 	pathlib.Path(path).mkdir(parents=True, exist_ok=True)
