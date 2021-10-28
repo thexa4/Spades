@@ -79,7 +79,7 @@ def main():
 	)
 
 	# 
-	training_model.fit(d, validation_data=v, epochs=50)
+	training_model.fit(d, validation_data=v, epochs=25)
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
 if __name__=="__main__":
