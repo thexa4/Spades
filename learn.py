@@ -26,7 +26,7 @@ def main():
 	files.remove('0001.flat.gz')
 	infile = [folder + '/' + f for f in files]
 	
-	batchsize = 48 * 1024
+	batchsize = 16 * 1024
 
 	d = tf.data.Dataset.from_tensors(infile)
 	d = d.unbatch()
@@ -45,11 +45,11 @@ def main():
 
 	training_model.compile(
 		loss=tf.keras.losses.MeanSquaredError(reduction="auto", name="mean_squared_error"),
-		optimizer=tf.keras.optimizers.Adam(learning_rate=0.001)
+		optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005)
 	)
 
 	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1)
-	training_model.fit(d, validation_data=v, epochs=50, callbacks=[tb_callback])
+	training_model.fit(d, validation_data=v, epochs=25, callbacks=[tb_callback])
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
 	converter = tf.lite.TFLiteConverter.from_keras_model(inference_model)

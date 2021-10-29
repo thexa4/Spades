@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import layers, regularizers
 
 def OneHot(input_dim=None, input_length=None):
     # Check if inputs were supplied correctly
@@ -52,11 +52,14 @@ def create():
         training_inputs[roundname + 'card'] = chosen_card
     training_rounds = layers.Reshape(target_shape=(13,))(layers.Concatenate(axis=1)(training_rounds))
 
-    bid_hidden = layers.Dense(32, activation='tanh')(bid_state)
+    bid_hidden = layers.ELU()(layers.Dense(1024, kernel_regularizer=regularizers.l2(1e-4))(bid_state))
+    bid_hidden = layers.ELU()(layers.Dense(1024, kernel_regularizer=regularizers.l2(1e-4))(bid_hidden))
+    bid_hidden = layers.ELU()(layers.Dense(1024, kernel_regularizer=regularizers.l2(1e-4))(bid_hidden))
+    bid_hidden = layers.ELU()(layers.Dense(512, kernel_regularizer=regularizers.l2(1e-4))(bid_hidden))
     bid_output = layers.Lambda(lambda x: x * 200)(layers.Dense(14, activation='tanh')(bid_hidden))
         
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
-    hidden_lstm = layers.LSTM(32, return_sequences=True)(rounds_stacked)
+    hidden_lstm = layers.ELU()(layers.LSTM(256, activation=None, return_sequences=True)(rounds_stacked))
     ltsm = layers.Lambda(lambda x: x * 200)(layers.LSTM(52, return_sequences=True)(hidden_lstm))
 
     inference_model = keras.Model(inputs=inputs, outputs={'bid_result': bid_output, 'rounds_result': ltsm}, name="spades1")
