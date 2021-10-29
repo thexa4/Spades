@@ -115,7 +115,7 @@ def main():
 	path = f'max2/data/q{q}/gen{generation:03}/samples/'
 	pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 	with gzip.open(path + f'{iteration:04}.flat.gz', 'wb', compresslevel=9) as f:
-		for i in dataset(generation, driver, models, blocks=150, rounds=10):
+		for i in dataset(generation, driver, models, blocks=300, rounds=10):
 			arr = i.numpy()
 			b = arr.tobytes()
 			f.write(b)
