@@ -30,13 +30,21 @@ def win_probability(team1, team2):
 
 def main():
 
+	strategy = 'single'
+	if len(sys.argv) >= 2:
+		if sys.argv[1] == 'single':
+			strategy = 'single'
+		if sys.argv[1] == 'double':
+			strategy = 'double'
+	print(f'Running in {strategy} mode')
+	
 	pool = [
 		('Braindead', lambda: BraindeadPlayer()),
 		('Random', lambda: RandomPlayer()),
 	]
 
-	q1_models = [('Inference A gen ' + str(i), max2.model.load(1, i)) for i in range(1, 2)]
-	q2_models = [('Inference B gen ' + str(i), max2.model.load(2, i)) for i in range(1, 2)]
+	q1_models = [(f'Max A{i:03}', max2.model.load(1, i)) for i in range(1, 2)]
+	q2_models = [(f'Max B{i:03}', max2.model.load(2, i)) for i in range(1, 2)]
 	#q3_models = [('Inference 3 gen ' + str(i), max2.model.load(3, i)) for i in range(1,2)]#, 5)]
 	#q4_models = []#[('Inference 4 gen ' + str(i), max2.model.load(4, i)) for i in range(1, 6)]
 
@@ -59,11 +67,19 @@ def main():
 		print()
 
 		pids = random.sample(range(len(pool)), 4)
+		if strategy == 'double':
+			teamids = random.sample(range(len(pool)), 2)
+			pids = list(teamids) + list(teamids)
+		
 		t1_desc = pool[pids[0]][0] + ", " + pool[pids[2]][0]
 		print(t1_desc + " vs " + pool[pids[1]][0] + ", " + pool[pids[3]][0])
 		players = [pool[i][1]() for i in pids]
-		estimators_t1 = [estimators[pids[0]], estimators[pids[2]]]
-		estimators_t2 = [estimators[pids[1]], estimators[pids[3]]]
+		if strategy == 'single':
+			estimators_t1 = [estimators[pids[0]], estimators[pids[2]]]
+			estimators_t2 = [estimators[pids[1]], estimators[pids[3]]]
+		else:
+			estimators_t1 = [estimators[pids[0]]]
+			estimators_t2 = [estimators[pids[1]]]
 	
 		winpercent = win_probability(estimators_t1, estimators_t2)
 		t1_winpercent = '{:.1%}'.format(winpercent)
@@ -81,9 +97,12 @@ def main():
 			rank[1] = 1
 
 		t1_rank, t2_rank = trueskill.rate([estimators_t1, estimators_t2], ranks=rank)
-		newranks = [t1_rank[0], t2_rank[0], t1_rank[1], t2_rank[1]]
+		if strategy == 'single':
+			newranks = [t1_rank[0], t2_rank[0], t1_rank[1], t2_rank[1]]
+		else:
+			newranks = [t1_rank[0], t2_rank[0]]
 
-		for i in range(4):
+		for i in range(len(newranks)):
 			estimators[pids[i]] = newranks[i]
 		
 		#input('Press enter to continue: ')
