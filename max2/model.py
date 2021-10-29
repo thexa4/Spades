@@ -71,4 +71,6 @@ def create():
     return (inference_model, training_model)
 
 def load(q, generation):
-    return tf.keras.models.load_model(f'max2/models/q{q}/gen{generation:03}.model')
+    interpreter = tf.lite.Interpreter(model_path=f'max2/models/q{q}/gen{generation:03}.tflite')
+    return interpreter.get_signature_runner()
+    #return tf.keras.models.load_model(f'max2/models/q{q}/gen{generation:03}.model', compile=False)

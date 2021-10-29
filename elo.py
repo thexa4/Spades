@@ -35,12 +35,12 @@ def main():
 		('Random', lambda: RandomPlayer()),
 	]
 
-	q1_models = [('Inference 1 gen ' + str(i), max2.model.load(1, i)) for i in range(1, 2)]
-	q2_models = [('Inference 2 gen ' + str(i), max2.model.load(2, i)) for i in range(1, 2)]
-	q3_models = [('Inference 3 gen ' + str(i), max2.model.load(3, i)) for i in range(1,2)]#, 5)]
-	q4_models = []#[('Inference 4 gen ' + str(i), max2.model.load(4, i)) for i in range(1, 6)]
+	q1_models = [('Inference A gen ' + str(i), max2.model.load(1, i)) for i in range(1, 2)]
+	q2_models = [('Inference B gen ' + str(i), max2.model.load(2, i)) for i in range(1, 2)]
+	#q3_models = [('Inference 3 gen ' + str(i), max2.model.load(3, i)) for i in range(1,2)]#, 5)]
+	#q4_models = []#[('Inference 4 gen ' + str(i), max2.model.load(4, i)) for i in range(1, 6)]
 
-	models = q1_models + q2_models + q3_models + q4_models
+	models = q1_models + q2_models# + q3_models + q4_models
 
 	for pair in models:
 		name, model = pair

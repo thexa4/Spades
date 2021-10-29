@@ -174,25 +174,25 @@ class GameState:
         params = {}
         for k in inputs.keys():
             v = inputs[k]
-            params[k] = np.expand_dims(v, 0)
+            params[k] = np.expand_dims(v, 0).astype(np.float32)
 
-        prediction = self.model(params, training=False)
+        prediction = self.model(**params)
         
         return {
-            'bids': prediction['bid_result'][0, :],
-            'round0': prediction['rounds_result'][0,0,:],
-            'round1': prediction['rounds_result'][0,1,:],
-            'round2': prediction['rounds_result'][0,2,:],
-            'round3': prediction['rounds_result'][0,3,:],
-            'round4': prediction['rounds_result'][0,4,:],
-            'round5': prediction['rounds_result'][0,5,:],
-            'round6': prediction['rounds_result'][0,6,:],
-            'round7': prediction['rounds_result'][0,7,:],
-            'round8': prediction['rounds_result'][0,8,:],
-            'round9': prediction['rounds_result'][0,9,:],
-            'round10': prediction['rounds_result'][0,10,:],
-            'round11': prediction['rounds_result'][0,11,:],
-            'round12': prediction['rounds_result'][0,12,:]
+            'bids': prediction['lambda'][0, :],
+            'round0': prediction['lambda_1'][0,0,:],
+            'round1': prediction['lambda_1'][0,1,:],
+            'round2': prediction['lambda_1'][0,2,:],
+            'round3': prediction['lambda_1'][0,3,:],
+            'round4': prediction['lambda_1'][0,4,:],
+            'round5': prediction['lambda_1'][0,5,:],
+            'round6': prediction['lambda_1'][0,6,:],
+            'round7': prediction['lambda_1'][0,7,:],
+            'round8': prediction['lambda_1'][0,8,:],
+            'round9': prediction['lambda_1'][0,9,:],
+            'round10': prediction['lambda_1'][0,10,:],
+            'round11': prediction['lambda_1'][0,11,:],
+            'round12': prediction['lambda_1'][0,12,:]
         }
     
     def training_data(self):

@@ -1,5 +1,6 @@
 
 import tensorflow as tf
+from functools import partial
 
 def keys():
     fields = {
@@ -46,7 +47,8 @@ def encode(row_in, row_out):
     
     return tf.concat(elements, -1)
 
-def decode(arr):
+def decode(batchsize, raw):
+    arr = tf.io.decode_raw(raw, tf.uint8)
     fielddefs = keys()
     inputs = {}
     outputs = {}
@@ -58,13 +60,13 @@ def decode(arr):
         fsize = v[0]
 
         if ftype == tf.uint8:
-            inputs[k] = arr[:, pos:(pos + fsize)]
+            inputs[k] = tf.ensure_shape(arr[:, pos:(pos + fsize)], (None, fsize))
             pos += fsize
         elif ftype == tf.float32:
             b = arr[:, pos:(pos + fsize * 4)]
             pos += fsize * 4
             arranged = tf.reshape(b, (-1, fsize, 4))
-            outputs[k] = tf.bitcast(arranged, tf.float32)
+            outputs[k] = tf.ensure_shape(tf.bitcast(arranged, tf.float32), (None, fsize))
         else:
             print('Bad type')
             exit(1)
@@ -72,11 +74,10 @@ def decode(arr):
     
     return (inputs, outputs)
 
-def load(files):
-    result = tf.data.FixedLengthRecordDataset(files, size(), num_parallel_reads=8, compression_type='GZIP')
-    result = result.map(lambda x: tf.io.decode_raw(x, tf.uint8))
-    result = result.batch(64 * 1024)
-    result = result.map(decode)
-    result = result.unbatch()
+def load(files, batchsize=64 * 1024):
+    result = tf.data.FixedLengthRecordDataset(files, size(), num_parallel_reads=tf.data.AUTOTUNE, compression_type='GZIP')
+    result = result.shuffle(256 * 1024)
+    result = result.batch(batchsize)
+    result = result.map(partial(decode, batchsize))
     
     return result
