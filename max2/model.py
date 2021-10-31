@@ -25,6 +25,11 @@ def create():
     inputs['bid_state_hand'] = keras.Input(shape=(52,), name='bid_state_hand')
     inputs['bid_state_bags'] = keras.Input(shape=(2*10), name='bid_state_bags')
     bid_state = layers.Concatenate(name='bid_state')([layers.Reshape(target_shape=(60,))(bid_state_bids), inputs['bid_state_hand'], layers.Reshape(target_shape=(20,))(inputs['bid_state_bags'])])
+    
+    #bid_hidden = layers.ELU()(layers.Dense(1024, dtype="mixed_float16")(bid_state))
+    bid_hidden = layers.ELU()(layers.Dense(512)(bid_state))
+    bid_hidden = layers.ELU()(layers.Dense(256)(bid_hidden))
+    bid_hidden = layers.ELU()(layers.Dense(128)(bid_hidden))
 
     rounds = []
     for i in range(13):
@@ -39,7 +44,7 @@ def create():
         inputs[roundname + 'hand'] = hand
         inputs[roundname + 'played'] = played
         inputs[roundname + 'todo'] = todo
-        concat = layers.Concatenate(name='round' + str(i))([seen, hand, played_flat, todo_flat, bid_state])
+        concat = layers.Concatenate(name='round' + str(i))([seen, hand, played_flat, todo_flat, bid_hidden])
         rounds.append(layers.Reshape(target_shape=([1, concat.shape[1]]))(concat))
         
     training_inputs = {}
@@ -52,28 +57,58 @@ def create():
         training_inputs[roundname + 'card'] = chosen_card
     training_rounds = layers.Reshape(target_shape=(13,))(layers.Concatenate(axis=1)(training_rounds))
 
-    bid_hidden = layers.ELU()(layers.Dense(1024, kernel_regularizer=regularizers.l2(1e-4))(bid_state))
-    bid_hidden = layers.ELU()(layers.Dense(1024, kernel_regularizer=regularizers.l2(1e-4))(bid_hidden))
-    bid_hidden = layers.ELU()(layers.Dense(1024, kernel_regularizer=regularizers.l2(1e-4))(bid_hidden))
-    bid_hidden = layers.ELU()(layers.Dense(512, kernel_regularizer=regularizers.l2(1e-4))(bid_hidden))
-    bid_output = layers.Lambda(lambda x: x * 200)(layers.Dense(14, activation='tanh')(bid_hidden))
+    bid_output = layers.Lambda(lambda x: x * 200, name='bid_output')(layers.Dense(14, activation='tanh')(bid_hidden))
         
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
-    hidden_lstm = layers.ELU()(layers.LSTM(256, activation=None, return_sequences=True)(rounds_stacked))
-    ltsm = layers.Lambda(lambda x: x * 200)(layers.LSTM(52, return_sequences=True)(hidden_lstm))
+    hidden_ltsm = layers.ELU()(layers.LSTM(256, activation=None, return_sequences=True)(rounds_stacked))
+    ltsm = layers.ELU()(layers.LSTM(64, activation=None, return_sequences=True)(hidden_ltsm))
+    perlayer = []
+    for i in range(13):
+        perlayer.append(layers.Dense(52, activation='tanh')(ltsm[:,i,:]))
+    ltsm = layers.Lambda(lambda x: tf.stack(x, axis=1) * 200, name='rounds_result')(perlayer)
 
     inference_model = keras.Model(inputs=inputs, outputs={'bid_result': bid_output, 'rounds_result': ltsm}, name="spades1")
 
     bid_mask = layers.Reshape(target_shape=(14,))(OneHot(14, 1)(training_inputs['chosen_bid']))
     rounds_mask = OneHot(52, 13)(training_rounds)
     bid_result = layers.Dot(name='bid_score', axes=1)([bid_output, bid_mask])
-    rounds_result = layers.Lambda(lambda x: tf.math.reduce_sum(tf.math.multiply(x[0], x[1]), axis=2), name='rounds_result')([ltsm, rounds_mask])
+    rounds_result = layers.Lambda(lambda x: tf.math.reduce_sum(tf.math.multiply(x[0], x[1]), axis=2), name='rounds_result_training')([ltsm, rounds_mask])
 
     training_model = keras.Model(inputs={**inputs, **training_inputs}, outputs={'bid_result': bid_result, 'rounds_result': rounds_result}, name="spades1")
 
     return (inference_model, training_model)
 
+def execute(interpreter, data):
+    tensors = interpreter.get_input_details()
+    #print([x['name'] for x in interpreter.get_input_details()])
+    for key in data.keys():
+        for tensor in tensors:
+            if key in tensor['name']:
+                interpreter.set_tensor(tensor['index'], data[key])
+                break
+    interpreter.invoke()
+
+    out = interpreter.get_output_details()
+
+    smallerindex = 0
+    if len(out[smallerindex]['shape']) != 2:
+        smallerindex = 1
+    
+    return {
+        'lambda': interpreter.get_tensor(out[smallerindex]['index']),
+        'lambda_1': interpreter.get_tensor(out[1 - smallerindex]['index'])
+    }
+    #print(out)
+    #print(data)
+    #quit()
+
 def load(q, generation):
     interpreter = tf.lite.Interpreter(model_path=f'max2/models/q{q}/gen{generation:03}.tflite')
-    return interpreter.get_signature_runner()
+    interpreter.allocate_tensors()
+    #print([x['name'] for x in interpreter.get_input_details()])
+    #print(interpreter.get_output_details())
+    return lambda **x: execute(interpreter, x)
+
+    
+    #return interpreter.get_signature_runner()
     #return tf.keras.models.load_model(f'max2/models/q{q}/gen{generation:03}.model', compile=False)
