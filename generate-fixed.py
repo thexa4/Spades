@@ -23,10 +23,14 @@ import random
 import gzip
 
 def select_player(generation, models = []):
-	if random.random() < (5 / (5 + generation)) or generation <= 1 or len(models) == 0:
-		return RandomPlayer()
+
+	selection_percentage = 0.3
+
+	for model in models:
+		if random.random() < selection_percentage:
+			return InferencePlayer(model)
 	
-	return InferencePlayer(random.choice(models))
+	return RandomPlayer()
 
 def dataset(generation, driver, models, blocks=1, rounds=1):
 	
@@ -110,6 +114,7 @@ def main():
 	models = []
 	for i in range(1, generation):
 		models.append(max2.model.load(q, i))
+	models.reverse()
 
 	path = f'max2/data/q{q}/gen{generation:03}/samples/'
 	pathlib.Path(path).mkdir(parents=True, exist_ok=True)

@@ -60,12 +60,12 @@ def main():
 	)
 
 	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
-	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=30, restore_best_weights=False)
 
 	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
 	callbacks = [lr_callback, tb_callback]
-	callbacks.append(stop_callback)
-	training_model.fit(d, validation_data=v, epochs=900, callbacks=callbacks)
+	#callbacks.append(stop_callback)
+	training_model.fit(d, validation_data=v, epochs=50, callbacks=callbacks)
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
 	converter = tf.lite.TFLiteConverter.from_keras_model(inference_model)
