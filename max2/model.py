@@ -19,6 +19,8 @@ def OneHot(input_dim=None, input_length=None):
                   input_shape=(input_length,))
 
 def create():
+    noise_amount = 10
+
     inputs = {}
     bid_state_bids = keras.Input(shape=(4*15), name='bid_state_bids')
     inputs['bid_state_bids'] = bid_state_bids
@@ -27,9 +29,9 @@ def create():
     bid_state = layers.Concatenate(name='bid_state')([layers.Reshape(target_shape=(60,))(bid_state_bids), inputs['bid_state_hand'], layers.Reshape(target_shape=(20,))(inputs['bid_state_bags'])])
     
     #bid_hidden = layers.ELU()(layers.Dense(1024, dtype="mixed_float16")(bid_state))
-    bid_hidden = layers.ELU()(layers.Dense(512)(bid_state))
-    bid_hidden = layers.ELU()(layers.Dense(256)(bid_hidden))
-    bid_hidden = layers.ELU()(layers.Dense(128)(bid_hidden))
+    bid_hidden = layers.ReLU()(layers.Dense(512)(bid_state))
+    bid_hidden = layers.ReLU()(layers.Dense(256)(bid_hidden))
+    bid_hidden = layers.ReLU()(layers.Dense(128)(bid_hidden))
 
     rounds = []
     for i in range(13):
@@ -57,7 +59,7 @@ def create():
         training_inputs[roundname + 'card'] = chosen_card
     training_rounds = layers.Reshape(target_shape=(13,))(layers.Concatenate(axis=1)(training_rounds))
 
-    bid_output = layers.Lambda(lambda x: x * 200, name='bid_output')(layers.Dense(14, activation='tanh')(bid_hidden))
+    bid_output = tf.keras.layers.GaussianNoise(noise_amount)(layers.Lambda(lambda x: x * 200, name='bid_output')(layers.Dense(14, activation='tanh')(bid_hidden)))
         
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
     hidden_ltsm = layers.ELU()(layers.LSTM(256, activation=None, return_sequences=True)(rounds_stacked))
@@ -65,7 +67,7 @@ def create():
     perlayer = []
     for i in range(13):
         perlayer.append(layers.Dense(52, activation='tanh')(ltsm[:,i,:]))
-    ltsm = layers.Lambda(lambda x: tf.stack(x, axis=1) * 200, name='rounds_result')(perlayer)
+    ltsm = tf.keras.layers.GaussianNoise(noise_amount)(layers.Lambda(lambda x: tf.stack(x, axis=1) * 200, name='rounds_result')(perlayer))
 
     inference_model = keras.Model(inputs=inputs, outputs={'bid_result': bid_output, 'rounds_result': ltsm}, name="spades1")
 

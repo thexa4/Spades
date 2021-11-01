@@ -16,6 +16,16 @@ import max2.model
 import max2.dataset
 import os
 import random
+import math
+
+def lr_schedule(epoch, lr):
+	min_lr = math.log(0.0001)
+	max_lr = math.log(0.003 / math.sqrt(epoch + 1))
+
+	length = 10
+	pos = abs((length - (epoch % (length * 2))) / length)
+	interp = pos * (max_lr - min_lr) + min_lr
+	return math.exp(interp)
 
 def main():
 	q = int(sys.argv[1])
@@ -50,8 +60,12 @@ def main():
 	)
 
 	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
-	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-	training_model.fit(d, validation_data=v, epochs=600, callbacks=[tb_callback, stop_callback])
+	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
+	callbacks = [lr_callback, tb_callback]
+	callbacks.append(stop_callback)
+	training_model.fit(d, validation_data=v, epochs=900, callbacks=callbacks)
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
 	converter = tf.lite.TFLiteConverter.from_keras_model(inference_model)
