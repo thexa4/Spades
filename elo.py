@@ -43,8 +43,8 @@ def main():
 		('Random', lambda: RandomPlayer()),
 	]
 
-	q1_models = [(f'Max {i:03}A', max2.model.load(1, i)) for i in range(1, 2)]
-	q2_models = [(f'Max {i:03}B', max2.model.load(2, i)) for i in range(1, 2)]
+	q1_models = [(f'Max {i:03}A', max2.model.load(1, i)) for i in range(1, 3)]
+	q2_models = [(f'Max {i:03}B', max2.model.load(2, i)) for i in range(1, 3)]
 	#q3_models = [('Inference 3 gen ' + str(i), max2.model.load(3, i)) for i in range(1,2)]#, 5)]
 	#q4_models = []#[('Inference 4 gen ' + str(i), max2.model.load(4, i)) for i in range(1, 6)]
 
