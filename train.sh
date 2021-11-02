@@ -11,7 +11,7 @@ if ! command -v python3 &> /dev/null; then
 	python="python"
 fi
 
-for c in $(seq 1 512); do
+for c in $(seq 1 256); do
 	i=$(( r * $cores + c ))
 
 	ipadded="$(sed -e :a -e 's/^.\{1,3\}$/0&/;ta' <<<"$i")"
