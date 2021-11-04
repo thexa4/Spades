@@ -2,10 +2,11 @@
 
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
 gpus = tf.config.experimental.list_physical_devices('GPU')
-print("Num GPUs Available: ", len(gpus))
+#print("Num GPUs Available: ", len(gpus))
 for gpu in gpus:
   tf.config.experimental.set_memory_growth(gpu, True)
 
@@ -119,7 +120,7 @@ def main():
 	path = f'max2/data/q{q}/gen{generation:03}/samples/'
 	pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 	with gzip.open(path + f'{iteration:04}.flat.gz', 'wb', compresslevel=9) as f:
-		for i in dataset(generation, driver, models, blocks=300, rounds=10):
+		for i in dataset(generation, driver, models, blocks=512, rounds=1):
 			arr = i.numpy()
 			b = arr.tobytes()
 			f.write(b)

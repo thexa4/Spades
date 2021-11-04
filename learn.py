@@ -37,19 +37,24 @@ def main():
 
 	folder = f'max2/data/q{q}/gen{generation:03}/samples'
 	files = os.listdir(folder)
-	files.remove('0001.flat.gz')
 	infile = [folder + '/' + f for f in files]
+	validation_count = len(infile) // 20
+
+	validationsamples = infile[:validation_count]
+	datasamples = infile[validation_count:]
 	
 	batchsize = 24 * 1024
 
-	d = tf.data.Dataset.from_tensors(infile)
+	d = tf.data.Dataset.from_tensors(datasamples)
 	d = d.unbatch()
 	d = d.cache()
 	d = d.shuffle(1024)
 	d = max2.dataset.load(d, batchsize)
 	d = d.prefetch(2)
 
-	v = max2.dataset.load(folder + '/0001.flat.gz', batchsize)
+	v = tf.data.Dataset.from_tensors(validationsamples)
+	v = v.unbatch()
+	v = max2.dataset.load(v, batchsize)
 	v = v.cache()
 	
 	inference_model, training_model = max2.model.create()

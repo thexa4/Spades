@@ -5,7 +5,7 @@ set -euo pipefail
 generation="$1"
 
 padded="$(sed -e :a -e 's/^.\{1,2\}$/0&/;ta' <<<"$generation")"
-samples="${SAMPLES:-256}"
+samples="${SAMPLES:-1024}"
 
 function sync_data {
 	set -euo pipefail
@@ -28,13 +28,13 @@ function sync_data {
 sync_data
 
 for q in 1 2; do
-	for i in $(seq 1 256); do
+	for i in $(seq 1 $samples); do
 		ipadded="$(sed -e :a -e 's/^.\{1,3\}$/0&/;ta' <<<"$i")"
 		if [ ! -f "max2/data/q$q/gen$padded/samples/$ipadded.flat.gz" ]; then
-			echo cd spades "&&" python "generate-fixed.py" "$q" "$generation" "$i"
+			echo cd spades "&&" python3 "generate-fixed.py" "$q" "$generation" "$i"
 		fi
 	done
-done #| parallel --nice 17 --sshloginfile max2/parallelhosts --sshdelay 0.1 echo
+done | parallel --nice 17 --controlmaster --sshloginfile max2/parallelhosts --sshdelay 0.2 --line-buffer --progress --joblog "max2/data/gen$padded.joblog"
 
 sync_data
 

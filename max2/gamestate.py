@@ -108,6 +108,9 @@ class GameState:
         }
         
         self.rounds[round] = r
+        if len(valid_cards) == 1:
+            self.chosen_cards[round] = int(valid_cards[0])
+            return valid_cards[0]
 
         prediction = self.compute()
         allowed_preds = [prediction['round' + str(round)][int(card)] for card in valid_cards]
@@ -177,7 +180,7 @@ class GameState:
             params[k] = np.expand_dims(v, 0).astype(np.float32)
 
         prediction = self.model(**params)
-        
+
         return {
             'bids': prediction['lambda'][0, :],
             'round0': prediction['lambda_1'][0,0,:],
