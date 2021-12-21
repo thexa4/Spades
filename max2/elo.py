@@ -87,7 +87,7 @@ class EloTeam:
             if score[1] > score[0]:
                 wins[1] = wins[1] + 1
 
-        self.record_score(score[0], score[1])
+        self.record_score(score[1], score[0])
 
         return EloRoundResult(self, scores, wins)
         
