@@ -19,7 +19,7 @@ def OneHot(input_dim=None, input_length=None):
                   input_shape=(input_length,))
 
 def create():
-    noise_amount = 10
+    noise_amount = 0
 
     inputs = {}
     bid_state_bids = keras.Input(shape=(4*15), name='bid_state_bids')
@@ -114,3 +114,9 @@ def load(q, generation):
     
     #return interpreter.get_signature_runner()
     #return tf.keras.models.load_model(f'max2/models/q{q}/gen{generation:03}.model', compile=False)
+
+def loadraw(path):
+    interpreter = tf.lite.Interpreter(model_path=path)
+    interpreter.allocate_tensors()
+    
+    return lambda **x: execute(interpreter, x)

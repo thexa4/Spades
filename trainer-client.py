@@ -130,7 +130,6 @@ def perform_work(params):
 	driver = None
 	models = []
 	if gen > 1:
-		print((2 - q, gen - 1))
 		driver = max2.model.load(2 - q, gen - 1)
 	
 		for i in range(1, gen):
@@ -153,7 +152,7 @@ def main():
 	manager = Pyro5.api.Proxy(url)
 
 	iterable = work_fetcher(url)
-	with Pool(numcores) as p:
+	with Pool(numcores, None, None, 500) as p:
 		for result in p.imap_unordered(perform_work, iterable):
 			gen, q, data = result
 

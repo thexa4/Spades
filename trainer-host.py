@@ -21,6 +21,8 @@ import Pyro5
 import threading
 import time
 from max2.learn_sync_manager import LearnSyncManager
+from max2.elo import EloManager
+from max2.inference_player import InferencePlayer
 
 def lr_schedule(epoch, lr):
 	min_lr = math.log(0.0001)
@@ -62,7 +64,7 @@ def learn(q, generation):
 	)
 
 	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
-	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
+	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
 	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
 	callbacks = [lr_callback, tb_callback]
@@ -84,20 +86,29 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
-	manager = LearnSyncManager(game_count = 1024 * 1024 * 10)
+	manager = LearnSyncManager(game_count = 1024 * 1024 * 2)
 	uri = daemon.register(manager, objectId='spades1')
 	print(uri)
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
 	daemon_thread.start()
 
+	elomanager = EloManager('double')
+	for i in range(manager.generation - 1):
+		for q in [1,2]:
+			path = f'max2/models/server/model-g{i+1:03}-q{q}.tflite'
+			elomanager.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}')
+
 	while True:
 		if manager.is_done():
 			learn(1, manager.generation)
 			learn(2, manager.generation)
+			for q in [1,2]:
+				path = f'max2/models/server/model-g{manager.generation:03}-q{q}.tflite'
+				elomanager.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}')
 			manager.advance_generation()
 
-			print('step')
-		time.sleep(1)	
+			print(f'Generation {manager.generation}:')
+		print(elomanager.play_game())
 	
 
 if __name__=="__main__":
