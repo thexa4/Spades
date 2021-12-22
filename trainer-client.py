@@ -145,7 +145,6 @@ def perform_work(params):
 					arr = i.numpy()
 					blockdata = arr.tobytes()
 					f.write(blockdata)
-		print(count)
 		return (gen, q, b.getvalue())
 
 def main():
