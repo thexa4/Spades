@@ -142,7 +142,7 @@ def perform_work(params):
 		with gzip.GzipFile(mode = 'wb', compresslevel = 9, fileobj = b) as f:
 			while count < blocksize:
 				start = time.perf_counter()
-				for i in dataset(gen, driver, models, blocks=4, rounds=2):
+				for i in dataset(gen, driver, models, blocks=4, rounds=1):
 					count = count + 1
 					arr = i.numpy()
 					blockdata = arr.tobytes()
