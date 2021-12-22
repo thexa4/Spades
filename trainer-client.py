@@ -137,15 +137,18 @@ def perform_work(params):
 		models.reverse()
 
 	count = 0
+	sumtime = 0
 	with io.BytesIO() as b:
 		with gzip.GzipFile(mode = 'wb', compresslevel = 9, fileobj = b) as f:
 			while count < blocksize:
-				for i in dataset(gen, driver, models, blocks=1, rounds=1):
+				start = time.perf_counter()
+				for i in dataset(gen, driver, models, blocks=4, rounds=2):
 					count = count + 1
 					arr = i.numpy()
 					blockdata = arr.tobytes()
 					f.write(blockdata)
-		return (gen, q, b.getvalue())
+				sumtime = sumtime + (time.perf_counter() - start)
+		return (sumtime / count, gen, q, b.getvalue())
 
 def main():
 	url = sys.argv[1]
@@ -154,10 +157,24 @@ def main():
 	sys.excepthook = Pyro5.errors.excepthook
 	manager = Pyro5.api.Proxy(url)
 
+	sumtime = 0
+	sumcount = 0
+	count = 0
+
 	iterable = work_fetcher(url)
 	with Pool(numcores, None, None, 500) as p:
 		for result in p.imap_unordered(perform_work, iterable):
-			gen, q, data = result
+			timing, gen, q, data = result
+
+			count = count + 1
+			sumcount = sumcount + 1
+			sumtime = sumtime + timing
+
+			if (count % 50) == 0:
+				perf = sumtime / sumcount
+				sumcount = 0
+				sumtime = 0
+				print(f'Block {count:06}: {perf:.3f} s/sample')
 
 			manager.store_block(gen, q, data)
 	
