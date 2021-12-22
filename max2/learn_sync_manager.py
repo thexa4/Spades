@@ -8,7 +8,7 @@ from os.path import exists
 
 @Pyro5.server.behavior(instance_mode='single')
 class LearnSyncManager(object):
-    def __init__(self, game_count = 1024 * 1024, blocksize = 128):
+    def __init__(self, game_count = 8 * 1024 * 1024, blocksize = 1024):
         self.desired_block_count = math.ceil(game_count / blocksize)
         self.blocksize = blocksize
 

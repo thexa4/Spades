@@ -136,12 +136,16 @@ def perform_work(params):
 			models.append(max2.model.load(q + 1, i))
 		models.reverse()
 
+	count = 0
 	with io.BytesIO() as b:
 		with gzip.GzipFile(mode = 'wb', compresslevel = 9, fileobj = b) as f:
-			for i in dataset(gen, driver, models, blocks = blocksize, rounds=1):
-				arr = i.numpy()
-				blockdata = arr.tobytes()
-				f.write(blockdata)
+			while count < blocksize:
+				for i in dataset(gen, driver, models, blocks=1, rounds=1):
+					count = count + 1
+					arr = i.numpy()
+					blockdata = arr.tobytes()
+					f.write(blockdata)
+		print(count)
 		return (gen, q, b.getvalue())
 
 def main():
