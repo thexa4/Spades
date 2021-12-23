@@ -163,7 +163,7 @@ def main():
 
 	iterable = work_fetcher(url)
 	with Pool(numcores, None, None, 500) as p:
-		for result in p.imap_unordered(perform_work, iterable):
+		for result in p.imap_unordered(perform_work, iterable, 1):
 			timing, gen, q, data = result
 
 			count = count + 1
