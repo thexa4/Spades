@@ -86,7 +86,7 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
-	manager = LearnSyncManager(game_count = 1024 * 1024 * 8)
+	manager = LearnSyncManager(game_count = 1024 * 1024 * 4)
 	uri = daemon.register(manager, objectId='spades1')
 	print(uri)
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
@@ -108,7 +108,8 @@ def main():
 			manager.advance_generation()
 
 			print(f'Generation {manager.generation}:')
-		print(elomanager.play_game())
+		if manager.generation > 1:
+			print(elomanager.play_game())
 	
 
 if __name__=="__main__":

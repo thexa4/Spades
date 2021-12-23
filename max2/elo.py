@@ -126,7 +126,7 @@ class EloManager:
             raise Exception("Strategy should be either single or double.")
         
         self.pool = [
-            EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead'),
+            #EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead'),
             EloPlayer(lambda: RandomPlayer(), 'max2/models/server/random', self.strategy, 'Random')
         ]
     
@@ -138,6 +138,8 @@ class EloManager:
         self.pool.append(newplayer)
 
     def generate_team(self):
+        if self.strategy == 'double' and len(self.pool) < 2:
+            raise Exception("Unable to run game with less than 4 players")
         if self.strategy == 'single' and len(self.pool) < 4:
             raise Exception("Unable to run game with less than 4 players")
 
