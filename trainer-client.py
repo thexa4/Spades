@@ -150,6 +150,7 @@ def perform_work(params):
 				sumtime = sumtime + (time.perf_counter() - start)
 		return (sumtime / count, gen, q, b.getvalue())
 
+
 def main():
 	url = sys.argv[1]
 	numcores = int(sys.argv[2])
@@ -162,8 +163,11 @@ def main():
 	count = 0
 
 	iterable = work_fetcher(url)
-	with Pool(numcores, None, None, 500) as p:
-		for result in p.imap_unordered(perform_work, iterable, 2):
+	with Pool(numcores, None, None, 50) as p:
+
+		def handle_success(result):
+			print(result)
+			requeue()
 			timing, gen, q, data = result
 
 			count = count + 1
@@ -177,6 +181,12 @@ def main():
 				print(f'Block {count:06}: {perf:.3f} s/sample')
 
 			manager.store_block(gen, q, data)
+		
+		def requeue():
+			p.apply_async(perform_work, next(iterable), handle_success, requeue)
+
+		for i in range(numcores + 2):
+			requeue()		
 	
 
 	

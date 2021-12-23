@@ -64,7 +64,7 @@ def learn(q, generation):
 	)
 
 	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
-	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
 
 	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
 	callbacks = [lr_callback, tb_callback]
