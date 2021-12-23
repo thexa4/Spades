@@ -124,9 +124,7 @@ def work_fetcher(url):
 		
 		yield (gen, q, blocksize)
 
-def perform_work(params):
-	gen, q, blocksize = params
-
+def perform_work(gen, q, blocksize):
 	driver = None
 	models = []
 	if gen > 1:
@@ -157,36 +155,53 @@ def main():
 
 	sys.excepthook = Pyro5.errors.excepthook
 	manager = Pyro5.api.Proxy(url)
-
-	sumtime = 0
-	sumcount = 0
-	count = 0
+	submitvars = {
+		'count': 0,
+		'time': 0,
+		'sumcount': 0,
+		}
 
 	iterable = work_fetcher(url)
 	with Pool(numcores, None, None, 50) as p:
 
 		def handle_success(result):
-			print(result)
-			requeue()
+			requeue(True)
 			timing, gen, q, data = result
 
-			count = count + 1
-			sumcount = sumcount + 1
-			sumtime = sumtime + timing
+			submitvars['count'] = submitvars['count'] + 1
+			submitvars['sumcount'] = submitvars['sumcount'] + 1
+			submitvars['sumtime'] = submitvars['sumtime'] + timing
 
-			if (count % 50) == 0:
-				perf = sumtime / sumcount
-				sumcount = 0
-				sumtime = 0
+			if (submitvars['count'] % 50) == 0:
+				perf = submitvars['sumtime'] / submitvars['sumcount']
+				submitvars['sumcount'] = 0
+				submitvars['sumtime'] = 0
+				count = submitvars['count']
 				print(f'Block {count:06}: {perf:.3f} s/sample')
 
-			manager.store_block(gen, q, data)
+			if not 'manager' in submitvars:
+				submitvars['manager'] = Pyro5.api.Proxy(url)
+			submitvars['manager'].store_block(gen, q, data)
 		
-		def requeue():
-			p.apply_async(perform_work, next(iterable), handle_success, requeue)
+		def handle_error(error):
+			print(error)
+			requeue(True)
+
+		def requeue(is_submit):
+			if is_submit:
+				if not 'iterable' in submitvars:
+					submitvars['iterable'] = work_fetcher(url)
+				job = next(submitvars['iterable'])
+			else:
+				job = next(iterable)
+				
+			p.apply_async(perform_work, job, {}, handle_success, handle_error)
 
 		for i in range(numcores + 2):
-			requeue()		
+			requeue(False)
+
+		while True:
+			time.sleep(1)
 	
 
 	
