@@ -171,7 +171,7 @@ def main():
 
 			submitvars['count'] = submitvars['count'] + 1
 			submitvars['sumcount'] = submitvars['sumcount'] + 1
-			submitvars['sumtime'] = submitvars['sumtime'] + timing
+			submitvars['time'] = submitvars['time'] + timing
 
 			if (submitvars['count'] % 50) == 0:
 				perf = submitvars['sumtime'] / submitvars['sumcount']
@@ -181,7 +181,7 @@ def main():
 				print(f'Block {count:06}: {perf:.3f} s/sample')
 
 			try:
-				if not 'manager' in submitvars:
+				if 'manager' not in submitvars:
 					submitvars['manager'] = Pyro5.api.Proxy(url)
 				submitvars['manager'].store_block(gen, q, data)
 			except Exception as e:
@@ -195,7 +195,7 @@ def main():
 		def requeue(is_submit):
 			if is_submit:
 				try:
-					if not 'iterable' in submitvars:
+					if 'iterable' not in submitvars:
 						submitvars['iterable'] = work_fetcher(url)
 					job = next(submitvars['iterable'])
 				except Exception as e:
