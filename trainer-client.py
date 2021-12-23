@@ -159,6 +159,7 @@ def main():
 		'count': 0,
 		'time': 0,
 		'sumcount': 0,
+		'crashed': False,
 		}
 
 	iterable = work_fetcher(url)
@@ -179,19 +180,29 @@ def main():
 				count = submitvars['count']
 				print(f'Block {count:06}: {perf:.3f} s/sample')
 
-			if not 'manager' in submitvars:
-				submitvars['manager'] = Pyro5.api.Proxy(url)
-			submitvars['manager'].store_block(gen, q, data)
+			try:
+				if not 'manager' in submitvars:
+					submitvars['manager'] = Pyro5.api.Proxy(url)
+				submitvars['manager'].store_block(gen, q, data)
+			except Exception as e:
+				submitvars['crashed'] = True
+				print(e)
 		
 		def handle_error(error):
+			submitvars['crashed'] = True
 			print(error)
-			requeue(True)
 
 		def requeue(is_submit):
 			if is_submit:
-				if not 'iterable' in submitvars:
-					submitvars['iterable'] = work_fetcher(url)
-				job = next(submitvars['iterable'])
+				try:
+					if not 'iterable' in submitvars:
+						submitvars['iterable'] = work_fetcher(url)
+					job = next(submitvars['iterable'])
+				except Exception as e:
+					submitvars['crashed'] = True
+					print(e)
+					return
+					
 			else:
 				job = next(iterable)
 				
@@ -200,7 +211,7 @@ def main():
 		for i in range(numcores + 2):
 			requeue(False)
 
-		while True:
+		while not submitvars['crashed']:
 			time.sleep(1)
 	
 
