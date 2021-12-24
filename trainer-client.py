@@ -30,6 +30,9 @@ from multiprocessing import Pool
 import serpent
 import datetime
 from os.path import exists
+import Pyro5
+
+Pyro5.config.COMMTIMEOUT = 30
 
 def select_model(generation, models = []):
 
@@ -247,6 +250,7 @@ def main():
 
 		while not submitvars['crashed']:
 			time.sleep(1)
+			manager.ping()
 	
 
 	

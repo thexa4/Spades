@@ -28,6 +28,10 @@ class LearnSyncManager(object):
         self.hostreports[hostname] = {'time': datetime.datetime.utcnow(), 'count': samplecount, 'speed': lastspeed, 'cores': cores, 'start': boottime, 'pause': pausetime}
     
     @Pyro5.server.expose
+    def ping(self):
+        pass
+
+    @Pyro5.server.expose
     def get_client_reports(self):
         return self.hostreports
 
