@@ -54,6 +54,30 @@ class LearnSyncManager(object):
         with self.lock:
             return self.models[q][gen]
     
+    @Pyro5.server.expose
+    def get_leaderboard(self):
+        files = os.listdir('max2/models/server/')
+        result = {
+            'double': [],
+            'single': [],
+        }
+
+        for filename in files:
+            if filename.endswith('.elo'):
+                mu = 25
+                sigma = 8.333
+                with open(f'max2/models/server/{filename}', 'r') as f:
+                    mu = float(f.readline())
+                    sigma = float(f.readline())
+                
+                label = filename.split('.')[0]
+                if filename.endswith('.double.elo'):
+                    result['double'].append({'label': label, 'mu': mu, 'sigma': sigma, 'trueskill': mu - 3 * sigma})
+                else:
+                    result['single'].append({'label': label, 'mu': mu, 'sigma': sigma, 'trueskill': mu - 3 * sigma})
+        
+        return result
+
     def is_done(self):
         with self.lock:
             return self.blocks_left[0] + self.blocks_left[1] == 0

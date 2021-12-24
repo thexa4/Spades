@@ -92,11 +92,13 @@ def main():
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
 	daemon_thread.start()
 
-	elomanager = EloManager('double')
+	elomanager_double = EloManager('double')
+	elomanager_single = EloManager('single')
 	for i in range(manager.generation - 1):
 		for q in [1,2]:
 			path = f'max2/models/server/model-g{i+1:03}-q{q}.tflite'
-			elomanager.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}')
+			elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}')
+			elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}')
 
 	while True:
 		if manager.is_done():
@@ -104,12 +106,17 @@ def main():
 			learn(2, manager.generation)
 			for q in [1,2]:
 				path = f'max2/models/server/model-g{manager.generation:03}-q{q}.tflite'
-				elomanager.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}')
+				elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}')
+				elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}')
 			manager.advance_generation()
 
 			print(f'Generation {manager.generation}:')
-		if manager.generation > 1:
-			print(elomanager.play_game())
+		if random.random() > 0.5:
+			if manager.generation > 1:
+				print(elomanager_double.play_game())
+		else:
+			if manager.generation > 3:
+				print(elomanager_single.play_game())
 	
 
 if __name__=="__main__":
