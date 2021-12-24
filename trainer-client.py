@@ -182,7 +182,7 @@ def main():
 	if exists('max2/models/q2'):
 		for filename in os.listdir('max2/models/q2/'):
 			if filename.endswith('.tflite'):
-				os.unlink('max2/models/q1/' + filename)
+				os.unlink('max2/models/q2/' + filename)
 
 	sys.excepthook = Pyro5.errors.excepthook
 	manager = Pyro5.api.Proxy(url)
