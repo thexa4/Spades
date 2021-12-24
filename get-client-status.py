@@ -54,8 +54,8 @@ def main():
 		if data['speed'] > 0:
 			speed += data['cores'] / data['speed']
 		
-		delta = datetime.datetime.utcnow() - datetime.datetime.fromisoformat(data['start'])
-		bps += data['count'] / delta.seconds
+		delta = datetime.datetime.utcnow() - datetime.datetime.fromisoformat(data['start']) - datetime.timedelta(seconds=data['pause'])
+		bps += data['count'] / delta.total_seconds()
 
 	
 	for host in known_hosts:
