@@ -25,6 +25,7 @@ def main():
 		besttime = datetime.datetime.fromisoformat(list(reports.items())[0][1]['time'])
 
 	speed = 0
+	bps = 0
 
 	known_hosts = [
 		'mojito.local',
@@ -50,12 +51,16 @@ def main():
 
 		if data['speed'] > 0:
 			speed += data['cores'] / data['speed']
+		
+		delta = datetime.datetime.utcnow() - datetime.datetime.fromisoformat(data['start'])
+		bps += data['count'] / delta.seconds()
+
 	
 	for host in known_hosts:
 		if host not in reports:
 			reports[host] = {'time': str(besttime - 2 * stuck_interval), 'speed': 0, 'count': 0, 'cores': 0}
 
-	print(f'Computing at {int(speed):0d} speed')
+	print(f'Computing at {int(speed):0d} speed, {bps:01f}')
 	print(f"{'Host':<16s}\tSpeed\tDone\t{'Time':<26s}\tStuck")
 	for key in natural_sort(reports):
 		data = reports[key]
