@@ -104,22 +104,26 @@ def dataset(generation, driver, models, blocks=1, rounds=1):
 	result = result.map(max2.dataset.encode)
 	return result.unbatch()
 
-def work_fetcher(url):
+def work_fetcher(url, submitvars):
 	manager = Pyro5.api.Proxy(url)
 	last_generation = None
 	paused = False
+	pausetime = None
 
 	while True:
 		unpacked = manager.fetch_todo()
 		if unpacked == None:
 			if not paused:
 				paused = True
+				pausetime = datetime.datetime.utcnow()
 				print('paused')
 			time.sleep(1)
 			continue
 		else:
 			if paused:
 				paused = False
+				submitvars['pausetime'] += pausetime - datetime.datetime.utcnow()
+				pausetime = None
 				print('resuming')
 		gen, q, blocksize = unpacked
 
@@ -172,9 +176,10 @@ def main():
 		'crashed': False,
 		'lastspeed': 0,
 		'starttime': datetime.datetime.utcnow(),
+		'pausetime': datetime.timedelta(),
 		}
 
-	iterable = work_fetcher(url)
+	iterable = work_fetcher(url, submitvars)
 	with Pool(numcores, None, None, 50) as p:
 
 		hostname = socket.gethostname()
@@ -198,7 +203,7 @@ def main():
 				if 'manager' not in submitvars:
 					submitvars['manager'] = Pyro5.api.Proxy(url)
 				submitvars['manager'].store_block(gen, q, data)
-				submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores, submitvars['starttime'])
+				submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores, submitvars['starttime'], submitvars['pausetime'])
 			except Exception as e:
 				submitvars['crashed'] = True
 				print(e)
@@ -211,7 +216,7 @@ def main():
 			if is_submit:
 				try:
 					if 'iterable' not in submitvars:
-						submitvars['iterable'] = work_fetcher(url)
+						submitvars['iterable'] = work_fetcher(url, submitvars)
 					job = next(submitvars['iterable'])
 				except Exception as e:
 					submitvars['crashed'] = True

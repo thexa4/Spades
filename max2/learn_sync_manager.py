@@ -24,8 +24,8 @@ class LearnSyncManager(object):
         self.hostreports = {}
 
     @Pyro5.server.expose
-    def submit_client_report(self, hostname, samplecount, lastspeed, cores, boottime):
-        self.hostreports[hostname] = {'time': datetime.datetime.utcnow(), 'count': samplecount, 'speed': lastspeed, 'cores': cores, 'start': boottime}
+    def submit_client_report(self, hostname, samplecount, lastspeed, cores, boottime, pausetime):
+        self.hostreports[hostname] = {'time': datetime.datetime.utcnow(), 'count': samplecount, 'speed': lastspeed, 'cores': cores, 'start': boottime, 'pause': pausetime}
     
     @Pyro5.server.expose
     def get_client_reports(self):
