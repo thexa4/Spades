@@ -27,6 +27,8 @@ def main():
 	speed = 0
 	bps = 0
 
+	blocks_left = sum(manager.get_blocks_left())
+
 	known_hosts = [
 		'mojito.local',
 		'JohnCollins',
@@ -60,7 +62,11 @@ def main():
 		if host not in reports:
 			reports[host] = {'time': str(besttime - 2 * stuck_interval), 'speed': 0, 'count': 0, 'cores': 0}
 
-	print(f'Computing at {int(speed):0d} speed, {bps:.01f} b/s')
+	generation_eta = 'inf'
+	if bps > 0:
+		generation_eta = datetime.timedelta(seconds = int(blocks_left / bps))
+
+	print(f'Computing at {int(speed):0d} speed, {bps:.01f} b/s => {generation_eta}')
 	print(f"{'Host':<16s}\tSpeed\tDone\t{'Time':<26s}\tStuck")
 	for key in natural_sort(reports):
 		data = reports[key]

@@ -87,6 +87,11 @@ class LearnSyncManager(object):
         
         return result
 
+    @Pyro5.server.expose
+    def get_blocks_left(self):
+        with self.lock:
+            return self.blocks_left
+
     def is_done(self):
         with self.lock:
             return self.blocks_left[0] + self.blocks_left[1] == 0
