@@ -160,5 +160,5 @@ class EloManager:
         if team == None:
             team = self.generate_team()
 
-        return team.play(10)       
+        return team.play(5)       
 
