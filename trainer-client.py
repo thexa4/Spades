@@ -175,9 +175,9 @@ def main():
 				submitvars['time'] = submitvars['time'] + timing
 
 				if (submitvars['count'] % (numcores // 2)) == 0:
-					perf = submitvars['sumtime'] / submitvars['sumcount']
+					perf = submitvars['time'] / submitvars['sumcount']
 					submitvars['sumcount'] = 0
-					submitvars['sumtime'] = 0
+					submitvars['time'] = 0
 					count = submitvars['count']
 					print(f'Block {count:06}: {perf:.3f} s/sample')
 
