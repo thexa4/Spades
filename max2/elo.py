@@ -10,6 +10,7 @@ import trueskill
 import random
 import itertools
 import math
+import concurrent.futures
 from os.path import exists
 
 class EloRoundResult:
@@ -57,37 +58,39 @@ class EloTeam:
     
     def play(self, rounds):
 
-        players = []
-        if len(self.teams[0]) == 1:
-            players = [
-                self.teams[0][0].playerfunc(),
-                self.teams[1][0].playerfunc(),
-                self.teams[0][0].playerfunc(),
-                self.teams[1][0].playerfunc(),
-            ]
-        else:
-            players = [
-                self.teams[0][0].playerfunc(),
-                self.teams[1][0].playerfunc(),
-                self.teams[0][1].playerfunc(),
-                self.teams[1][1].playerfunc(),
-            ]
-
         scores = [0,0]
         wins = [0,0]
 
-        manager = GameManager(players)
-        for i in range(rounds):
-            score = manager.play_game()
-            scores[0] = scores[0] + score[0]
-            scores[1] = scores[1] + score[1]
+        def play_round(_):
+            players = []
+            if len(self.teams[0]) == 1:
+                players = [
+                    self.teams[0][0].playerfunc(),
+                    self.teams[1][0].playerfunc(),
+                    self.teams[0][0].playerfunc(),
+                    self.teams[1][0].playerfunc(),
+                ]
+            else:
+                players = [
+                    self.teams[0][0].playerfunc(),
+                    self.teams[1][0].playerfunc(),
+                    self.teams[0][1].playerfunc(),
+                    self.teams[1][1].playerfunc(),
+                ]
+            manager = GameManager(players)
+            return manager.play_game()
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            for score in pool.map(play_round, range(rounds)):
+                scores[0] = scores[0] + score[0]
+                scores[1] = scores[1] + score[1]
 
-            if score[0] > score[1]:
-                wins[0] = wins[0] + 1
-            if score[1] > score[0]:
-                wins[1] = wins[1] + 1
+                if score[0] > score[1]:
+                    wins[0] = wins[0] + 1
+                if score[1] > score[0]:
+                    wins[1] = wins[1] + 1
 
-        self.record_score(score[1], score[0])
+        self.record_score(scores[1], scores[0])
 
         return EloRoundResult(self, scores, wins)
         
