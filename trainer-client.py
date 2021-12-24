@@ -166,21 +166,21 @@ def main():
 	with Pool(numcores, None, None, 50) as p:
 
 		def handle_success(result):
-			requeue(True)
-			timing, gen, q, data = result
-
-			submitvars['count'] = submitvars['count'] + 1
-			submitvars['sumcount'] = submitvars['sumcount'] + 1
-			submitvars['time'] = submitvars['time'] + timing
-
-			if (submitvars['count'] % 50) == 0:
-				perf = submitvars['sumtime'] / submitvars['sumcount']
-				submitvars['sumcount'] = 0
-				submitvars['sumtime'] = 0
-				count = submitvars['count']
-				print(f'Block {count:06}: {perf:.3f} s/sample')
-
 			try:
+				requeue(True)
+				timing, gen, q, data = result
+
+				submitvars['count'] = submitvars['count'] + 1
+				submitvars['sumcount'] = submitvars['sumcount'] + 1
+				submitvars['time'] = submitvars['time'] + timing
+
+				if (submitvars['count'] % (numcores // 2)) == 0:
+					perf = submitvars['sumtime'] / submitvars['sumcount']
+					submitvars['sumcount'] = 0
+					submitvars['sumtime'] = 0
+					count = submitvars['count']
+					print(f'Block {count:06}: {perf:.3f} s/sample')
+
 				if 'manager' not in submitvars:
 					submitvars['manager'] = Pyro5.api.Proxy(url)
 				submitvars['manager'].store_block(gen, q, data)
