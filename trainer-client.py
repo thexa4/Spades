@@ -28,6 +28,7 @@ import io
 import socket
 from multiprocessing import Pool
 import serpent
+import datetime
 from os.path import exists
 
 def select_player(generation, models = []):
@@ -170,6 +171,7 @@ def main():
 		'sumcount': 0,
 		'crashed': False,
 		'lastspeed': 0,
+		'starttime': datetime.datetime.utcnow(),
 		}
 
 	iterable = work_fetcher(url)
@@ -196,7 +198,7 @@ def main():
 				if 'manager' not in submitvars:
 					submitvars['manager'] = Pyro5.api.Proxy(url)
 				submitvars['manager'].store_block(gen, q, data)
-				submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores)
+				submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores, submitvars['starttime'])
 			except Exception as e:
 				submitvars['crashed'] = True
 				print(e)
