@@ -46,7 +46,7 @@ def dataset(generation, driver, models, blocks=1, rounds=1):
 		training_player2 = TrainingPlayer(driver, generation)
 		opponent_model = select_model(generation, models)
 
-		t_p = [training_player, training_player]
+		t_p = [training_player1, training_player2]
 		b_p = [RandomPlayer(), RandomPlayer()]
 		if oppenent_model != None:
 			b_p = [InferencePlayer(opponent_model), InferencePlayer(opponent_model)]
