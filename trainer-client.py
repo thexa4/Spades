@@ -106,12 +106,20 @@ def dataset(generation, driver, models, blocks=1, rounds=1):
 def work_fetcher(url):
 	manager = Pyro5.api.Proxy(url)
 	last_generation = None
+	paused = False
 
 	while True:
 		unpacked = manager.fetch_todo()
 		if unpacked == None:
+			if not paused:
+				paused = True
+				print('paused')
 			time.sleep(1)
 			continue
+		else:
+			if paused:
+				paused = False
+				print('resuming')
 		gen, q, blocksize = unpacked
 
 		if gen != last_generation:
