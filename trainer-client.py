@@ -25,6 +25,7 @@ import gzip
 import Pyro5.api
 import time
 import io
+import socket
 from multiprocessing import Pool
 import serpent
 from os.path import exists
@@ -160,11 +161,13 @@ def main():
 		'time': 0,
 		'sumcount': 0,
 		'crashed': False,
+		'lastspeed': 0,
 		}
 
 	iterable = work_fetcher(url)
 	with Pool(numcores, None, None, 50) as p:
 
+		hostname = socket.gethostname()
 		def handle_success(result):
 			try:
 				requeue(True)
@@ -179,11 +182,13 @@ def main():
 					submitvars['sumcount'] = 0
 					submitvars['time'] = 0
 					count = submitvars['count']
+					submitvars['lastspeed'] = perf
 					print(f'Block {count:06}: {perf:.3f} s/sample')
 
 				if 'manager' not in submitvars:
 					submitvars['manager'] = Pyro5.api.Proxy(url)
 				submitvars['manager'].store_block(gen, q, data)
+				submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores)
 			except Exception as e:
 				submitvars['crashed'] = True
 				print(e)

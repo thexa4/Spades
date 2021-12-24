@@ -4,6 +4,7 @@ import Pyro5.server
 import threading
 import serpent
 import os
+import datetime
 from os.path import exists
 
 @Pyro5.server.behavior(instance_mode='single')
@@ -20,7 +21,15 @@ class LearnSyncManager(object):
         
         self._raw_set_generation(self.generation)
         self.lock = threading.Lock()
+        self.hostreports = {}
 
+    @Pyro5.server.expose
+    def submit_client_report(self, hostname, samplecount, lastspeed, cores):
+        self.hostreports[hostname] = {'time': datetime.datetime.utcnow(), 'count': samplecount, 'speed': lastspeed, 'cores': cores}
+    
+    @Pyro5.server.expose
+    def get_client_reports(self):
+        return self.hostreports
 
     @Pyro5.server.expose
     def fetch_todo(self):
