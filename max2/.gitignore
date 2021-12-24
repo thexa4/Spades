@@ -1,3 +1,6 @@
 data/
 models/q1/*.tflite
 models/q2/*.tflite
+data-single1/
+models-single1/q1/*.tflite
+models-single1/q2/*.tflite

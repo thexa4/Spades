@@ -31,29 +31,34 @@ import serpent
 import datetime
 from os.path import exists
 
-def select_player(generation, models = []):
+def select_model(generation, models = []):
 
-	selection_percentage = 0.3
-
-	for model in models:
-		if random.random() < selection_percentage:
-			return InferencePlayer(model)
+	model_id = random.randrange(len(models) + 1)
+	if model_id >= len(models):
+		return None
 	
-	return RandomPlayer()
+	return models[model_id]
 
 def dataset(generation, driver, models, blocks=1, rounds=1):
 	
 	def play_block():
-		training_player = TrainingPlayer(driver, generation)
+		training_player1 = TrainingPlayer(driver, generation)
+		training_player2 = TrainingPlayer(driver, generation)
+		opponent_model = select_model(generation, models)
 
-		t_p = [select_player(generation, models), training_player]
-		b_p = [select_player(generation, models) for i in range(2)]
+		t_p = [training_player, training_player]
+		b_p = [RandomPlayer(), RandomPlayer()]
+		if oppenent_model != None:
+			b_p = [InferencePlayer(opponent_model), InferencePlayer(opponent_model)]
+		
 		players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 		manager = GameManager(players)
 
 		for i in range(rounds):
 			manager.play_game()
-		for sample in training_player.samples:
+		for sample in training_player1.samples:
+			yield (sample['training'], sample['score'])
+		for sample in training_player2.samples:
 			yield (sample['training'], sample['score'])
 	
 	
