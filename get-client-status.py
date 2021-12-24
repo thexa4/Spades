@@ -53,14 +53,14 @@ def main():
 			speed += data['cores'] / data['speed']
 		
 		delta = datetime.datetime.utcnow() - datetime.datetime.fromisoformat(data['start'])
-		bps += data['count'] / delta.seconds()
+		bps += data['count'] / delta.seconds
 
 	
 	for host in known_hosts:
 		if host not in reports:
 			reports[host] = {'time': str(besttime - 2 * stuck_interval), 'speed': 0, 'count': 0, 'cores': 0}
 
-	print(f'Computing at {int(speed):0d} speed, {bps:01f}')
+	print(f'Computing at {int(speed):0d} speed, {bps:.01f} b/s')
 	print(f"{'Host':<16s}\tSpeed\tDone\t{'Time':<26s}\tStuck")
 	for key in natural_sort(reports):
 		data = reports[key]
