@@ -172,12 +172,14 @@ def main():
 	url = sys.argv[1]
 	numcores = int(sys.argv[2])
 
-	for filename in os.listdir('max2/models/q1/'):
-		if filename.endswith('.tflite'):
-			os.unlink('max2/models/q1/' + filename)
-	for filename in os.listdir('max2/models/q2/'):
-		if filename.endswith('.tflite'):
-			os.unlink('max2/models/q1/' + filename)
+	if exists('max2/models/q1'):
+		for filename in os.listdir('max2/models/q1/'):
+			if filename.endswith('.tflite'):
+				os.unlink('max2/models/q1/' + filename)
+	if exists('max2/models/q2'):
+		for filename in os.listdir('max2/models/q2/'):
+			if filename.endswith('.tflite'):
+				os.unlink('max2/models/q1/' + filename)
 
 	sys.excepthook = Pyro5.errors.excepthook
 	manager = Pyro5.api.Proxy(url)
