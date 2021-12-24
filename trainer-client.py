@@ -48,7 +48,7 @@ def dataset(generation, driver, models, blocks=1, rounds=1):
 
 		t_p = [training_player1, training_player2]
 		b_p = [RandomPlayer(), RandomPlayer()]
-		if oppenent_model != None:
+		if opponent_model != None:
 			b_p = [InferencePlayer(opponent_model), InferencePlayer(opponent_model)]
 		
 		players = [b_p[0], t_p[0], b_p[1], t_p[1]]
