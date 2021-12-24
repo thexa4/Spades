@@ -122,7 +122,7 @@ def work_fetcher(url, submitvars):
 		else:
 			if paused:
 				paused = False
-				submitvars['pausetime'] += pausetime - datetime.datetime.utcnow()
+				submitvars['pausetime'] += datetime.datetime.utcnow() - pausetime
 				pausetime = None
 				print('resuming')
 		gen, q, blocksize = unpacked

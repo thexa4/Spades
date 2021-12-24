@@ -54,7 +54,7 @@ def main():
 		if data['speed'] > 0:
 			speed += data['cores'] / data['speed']
 		
-		delta = datetime.datetime.utcnow() - datetime.datetime.fromisoformat(data['start']) - datetime.timedelta(seconds=data['pause'])
+		delta = datetime.datetime.utcnow() - datetime.datetime.fromisoformat(data['start']) - datetime.timedelta(seconds=abs(data['pause']))
 		bps += data['count'] / delta.total_seconds()
 
 	
