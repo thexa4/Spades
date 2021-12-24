@@ -3,6 +3,13 @@
 import Pyro5.api
 import sys
 import datetime
+import re
+
+# from https://stackoverflow.com/questions/4836710/is-there-a-built-in-function-for-string-natural-sort
+def natural_sort(l): 
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
 
 def main():
 	url = sys.argv[1]
@@ -19,6 +26,23 @@ def main():
 
 	speed = 0
 
+	known_hosts = [
+		'mojito.local',
+		'JohnCollins',
+		'spades1',
+		'spades2',
+		'spades3',
+		'spades4',
+		'spades6',
+		'spades7',
+		'spades8',
+		'spades9',
+		'spades10',
+		'spades11',
+		'spades12',
+		'spades13',
+	]
+
 	for key in reports:
 		data = reports[key]
 		if datetime.datetime.fromisoformat(data['time']) > besttime:
@@ -27,9 +51,13 @@ def main():
 		if data['speed'] > 0:
 			speed += data['cores'] / data['speed']
 	
+	for host in known_hosts:
+		if host not in reports:
+			reports[host] = {'time': str(besttime - 2 * stuck_interval), 'speed': 0, 'count': 0, 'cores': 0}
+
 	print(f'Computing at {int(speed):0d} speed')
 	print(f"{'Host':<16s}\tSpeed\tDone\t{'Time':<26s}\tStuck")
-	for key in reports:
+	for key in natural_sort(reports):
 		data = reports[key]
 		speed = 0
 		if data['speed'] > 0:

@@ -156,9 +156,16 @@ class EloManager:
         
         return EloTeam(team1, team2)
 
+    def generate_high_entropy_team(self):
+        while True:
+            team = self.generate_team()
+            equality = abs(team.win_probability() - 0.5) * 2
+            if random.random() > equality:
+                return team
+
     def play_game(self, team = None):
         if team == None:
-            team = self.generate_team()
+            team = self.generate_high_entropy_team()
 
         return team.play(5)       
 
