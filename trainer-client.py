@@ -118,11 +118,11 @@ def work_fetcher(url, submitvars):
 	last_generation = None
 	paused = False
 	pausetime = None
-	last_fetch = datetime.datetime.utcnow() - timedelta(minutes=60)
+	last_fetch = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
 	todo_params = None
 
 	while True:
-		if datetime.datetime.utcnow() - last_fetch > timedelta(seconds=60):
+		if datetime.datetime.utcnow() - last_fetch > datetime.timedelta(seconds=60):
 			todo_params = manager.fetch_todo_params()
 			last_fetch = datetime.datetime.utcnow()
 		unpacked = None
@@ -152,7 +152,7 @@ def work_fetcher(url, submitvars):
 						os.makedirs(f'max2/models/q{q + 1}/', exist_ok=True)
 						with open(f'max2/models/q{q + 1}/gen{i + 1:03}.tflite', 'xb') as f:
 							f.write(serpent.tobytes(manager.get_model(i, q)))
-		
+
 		yield (gen, q, blocksize)
 
 def perform_work(gen, q, blocksize):
@@ -232,7 +232,7 @@ def main():
 				submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores, submitvars['starttime'], submitvars['pausetime'].total_seconds())
 			except Exception as e:
 				submitvars['crashed'] = True
-				print(e)
+				print("Crash: " + e)
 		
 		def handle_error(error):
 			submitvars['crashed'] = True
