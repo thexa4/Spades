@@ -29,10 +29,11 @@ def create():
     bid_state = layers.Concatenate(name='bid_state')([layers.Reshape(target_shape=(60,))(bid_state_bids), inputs['bid_state_hand'], layers.Reshape(target_shape=(20,))(inputs['bid_state_bags'])])
     
     #bid_hidden = layers.ELU()(layers.Dense(1024, dtype="mixed_float16")(bid_state))
-    bid_hidden = layers.ReLU()(layers.Dense(512)(bid_state))
-    bid_hidden = layers.ReLU()(layers.Dense(256)(bid_hidden))
-    bid_hidden = layers.ReLU()(layers.Dense(128)(bid_hidden))
+    bid_hidden = layers.ReLU()(layers.Dense(256)(bid_state))
+    #bid_hidden = layers.ReLU()(layers.Dense(256)(bid_hidden))
+    #bid_hidden = layers.ReLU()(layers.Dense(256)(bid_hidden))
 
+    sliding_layer = layers.Dense(512, activation='tanh')
     rounds = []
     for i in range(13):
         roundname='round' + str(i) + '_'
@@ -47,7 +48,8 @@ def create():
         inputs[roundname + 'played'] = played
         inputs[roundname + 'todo'] = todo
         concat = layers.Concatenate(name='round' + str(i))([seen, hand, played_flat, todo_flat, bid_hidden])
-        rounds.append(layers.Reshape(target_shape=([1, concat.shape[1]]))(concat))
+        cur_layer = layers.Reshape(target_shape=([1, concat.shape[1]]))(concat)
+        rounds.append(sliding_layer(cur_layer))
         
     training_inputs = {}
     training_rounds = []
@@ -62,8 +64,9 @@ def create():
     bid_output = tf.keras.layers.GaussianNoise(noise_amount)(layers.Lambda(lambda x: x * 200, name='bid_output')(layers.Dense(14, activation='tanh')(bid_hidden)))
         
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
-    hidden_ltsm = layers.ELU()(layers.LSTM(256, activation=None, return_sequences=True)(rounds_stacked))
-    ltsm = layers.ELU()(layers.LSTM(64, activation=None, return_sequences=True)(hidden_ltsm))
+    #hidden_ltsm = layers.ELU()(layers.LSTM(1024, activation=None, return_sequences=True)(rounds_stacked))
+    #ltsm = layers.ELU()(layers.LSTM(64, activation=None, return_sequences=True)(hidden_ltsm))
+    ltsm = layers.ELU()(layers.LSTM(1024, activation=None, return_sequences=True)(rounds_stacked))
     perlayer = []
     for i in range(13):
         perlayer.append(layers.Dense(52, activation='tanh')(ltsm[:,i,:]))

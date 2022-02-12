@@ -36,14 +36,7 @@ def main():
 		'spades2',
 		'spades3',
 		'spades4',
-		'spades6',
-		'spades7',
-		'spades8',
-		'spades9',
-		'spades10',
-		'spades11',
-		'spades12',
-		'spades13',
+		'zombie',
 	]
 
 	for key in reports:

@@ -31,6 +31,7 @@ import serpent
 import datetime
 from os.path import exists
 import Pyro5
+import random
 
 Pyro5.config.COMMTIMEOUT = 30
 
@@ -117,9 +118,17 @@ def work_fetcher(url, submitvars):
 	last_generation = None
 	paused = False
 	pausetime = None
+	last_fetch = datetime.datetime.utcnow() - timedelta(minutes=60)
+	todo_params = None
 
 	while True:
-		unpacked = manager.fetch_todo()
+		if datetime.datetime.utcnow() - last_fetch > timedelta(seconds=60):
+			todo_params = manager.fetch_todo_params()
+			last_fetch = datetime.datetime.utcnow()
+		unpacked = None
+		if todo_params != None:
+			gen, probabilities, size = todo_params
+			unpacked = (gen, random.choices([0, 1], probabilities)[0], size)
 		if unpacked == None:
 			if not paused:
 				paused = True

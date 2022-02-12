@@ -41,6 +41,14 @@ class LearnSyncManager(object):
             if self.blocks_left[0] + self.blocks_left[1] == 0:
                 return None
             return (self.generation, random.choices([0, 1], self.blocks_left)[0], self.blocksize)
+
+    @Pyro5.server.expose
+    def fetch_todo_params(self):
+        with self.lock:
+            todo = self.blocks_left[0] + self.blocks_left[1]
+            if todo == 0:
+                return None
+            return (self.generation, self.blocks_left, self.blocksize)
     
     @Pyro5.server.expose
     def store_block(self, gen, q, block):

@@ -1,8 +1,6 @@
 from game_manager import GameManager
 from braindead_player import BraindeadPlayer
-from max.tensor_player import TensorPlayer
 from max.random_player import RandomPlayer
-from max.predictor import Predictor
 from max2.training_player import TrainingPlayer
 import max2.model
 import sys
@@ -129,7 +127,7 @@ class EloManager:
             raise Exception("Strategy should be either single or double.")
         
         self.pool = [
-            #EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead'),
+            EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead'),
             EloPlayer(lambda: RandomPlayer(), 'max2/models/server/random', self.strategy, 'Random')
         ]
     

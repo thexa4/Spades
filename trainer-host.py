@@ -42,7 +42,7 @@ def learn(q, generation):
 	validationsamples = infile[:validation_count]
 	datasamples = infile[validation_count:]
 	
-	batchsize = 24 * 1024
+	batchsize = 48 * 1024
 
 	d = tf.data.Dataset.from_tensors(datasamples)
 	d = d.unbatch()
@@ -69,7 +69,7 @@ def learn(q, generation):
 	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
 	callbacks = [lr_callback, tb_callback]
 	callbacks.append(stop_callback)
-	training_model.fit(d, validation_data=v, epochs=300, callbacks=callbacks)
+	training_model.fit(d, validation_data=v, epochs=100, callbacks=callbacks)
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
 	converter = tf.lite.TFLiteConverter.from_keras_model(inference_model)
@@ -86,7 +86,7 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
-	manager = LearnSyncManager(game_count = 1024 * 1024 * 4)
+	manager = LearnSyncManager(game_count = 1024 * 1024 * 32 * 4)
 	uri = daemon.register(manager, objectId='spades1')
 	print(uri)
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
