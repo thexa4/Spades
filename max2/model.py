@@ -29,11 +29,11 @@ def create():
     bid_state = layers.Concatenate(name='bid_state')([layers.Reshape(target_shape=(60,))(bid_state_bids), inputs['bid_state_hand'], layers.Reshape(target_shape=(20,))(inputs['bid_state_bags'])])
     
     #bid_hidden = layers.ELU()(layers.Dense(1024, dtype="mixed_float16")(bid_state))
-    bid_hidden = layers.ReLU()(layers.Dense(256)(bid_state))
+    bid_hidden = layers.ReLU()(layers.Dense(1024)(bid_state))
     #bid_hidden = layers.ReLU()(layers.Dense(256)(bid_hidden))
     #bid_hidden = layers.ReLU()(layers.Dense(256)(bid_hidden))
 
-    sliding_layer = layers.Dense(512, activation='tanh')
+    sliding_layer = layers.Dense(2048, activation='tanh')
     rounds = []
     for i in range(13):
         roundname='round' + str(i) + '_'
@@ -66,10 +66,10 @@ def create():
     rounds_stacked = layers.Concatenate(axis=1)(rounds)
     #hidden_ltsm = layers.ELU()(layers.LSTM(1024, activation=None, return_sequences=True)(rounds_stacked))
     #ltsm = layers.ELU()(layers.LSTM(64, activation=None, return_sequences=True)(hidden_ltsm))
-    ltsm = layers.ELU()(layers.LSTM(1024, activation=None, return_sequences=True)(rounds_stacked))
+    ltsm = layers.ELU()(layers.LSTM(2048, activation='tanh', return_sequences=True)(rounds_stacked))
     perlayer = []
     for i in range(13):
-        perlayer.append(layers.Dense(52, activation='tanh')(ltsm[:,i,:]))
+        perlayer.append(layers.Dense(52, activation='tanh')(layers.Dense(1024, activation='tanh')(ltsm[:,i,:])))
     ltsm = tf.keras.layers.GaussianNoise(noise_amount)(layers.Lambda(lambda x: tf.stack(x, axis=1) * 200, name='rounds_result')(perlayer))
 
     inference_model = keras.Model(inputs=inputs, outputs={'bid_result': bid_output, 'rounds_result': ltsm}, name="spades1")

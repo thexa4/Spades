@@ -25,10 +25,10 @@ from max2.elo import EloManager
 from max2.inference_player import InferencePlayer
 
 def lr_schedule(epoch, lr):
-	min_lr = math.log(0.0001)
-	max_lr = math.log(0.003 / math.sqrt(epoch + 1))
+	min_lr = math.log(0.00001)
+	max_lr = math.log(0.0003 / math.sqrt(epoch + 1))
 
-	length = 10
+	length = 4
 	pos = abs((length - (epoch % (length * 2))) / length)
 	interp = pos * (max_lr - min_lr) + min_lr
 	return math.exp(interp)
@@ -42,7 +42,7 @@ def learn(q, generation):
 	validationsamples = infile[:validation_count]
 	datasamples = infile[validation_count:]
 	
-	batchsize = 48 * 1024
+	batchsize = 5 * 1024
 
 	d = tf.data.Dataset.from_tensors(datasamples)
 	d = d.unbatch()
@@ -64,12 +64,12 @@ def learn(q, generation):
 	)
 
 	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
-	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
+	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
 	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
 	callbacks = [lr_callback, tb_callback]
 	callbacks.append(stop_callback)
-	training_model.fit(d, validation_data=v, epochs=100, callbacks=callbacks)
+	training_model.fit(d, validation_data=v, epochs=30, callbacks=callbacks)
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
 	converter = tf.lite.TFLiteConverter.from_keras_model(inference_model)
@@ -86,7 +86,7 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
-	manager = LearnSyncManager(game_count = 1024 * 1024 * 32 * 4)
+	manager = LearnSyncManager(game_count = 1024 * 1024 * 32)
 	uri = daemon.register(manager, objectId='spades1')
 	print(uri)
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
@@ -114,9 +114,14 @@ def main():
 		if random.random() > 0.5:
 			if manager.generation > 1:
 				print(elomanager_double.play_game())
+			else:
+				time.sleep(1)
 		else:
 			if manager.generation > 3:
 				print(elomanager_single.play_game())
+			else:
+				time.sleep(1)
+
 	
 
 if __name__=="__main__":
