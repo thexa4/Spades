@@ -47,7 +47,7 @@ class LearnSyncManager(object):
         team = manager.generate_high_entropy_team()
         team1 = [x.remote_path for x in team.teams[0]]
         team2 = [x.remote_path for x in team.teams[1]]
-        return ('elo', self.generation, manager_id, [team1, team2])
+        return ('elo', self.generation, manager_id, [team1, team2], self.elosize)
 
     @Pyro5.server.expose
     def fetch_todo(self):

@@ -214,7 +214,7 @@ def perform_work_elo(manager_id, teams, rounds):
 			return RandomPlayer()
 		if p == 'braindead':
 			return BraindeadPlayer()
-		return InferencePlayer(max2.model.loadraw(p))
+		return InferencePlayer(max2.model.loadraw(f'max2/models/{p}'))
 
 	team1, team2 = teams
 
@@ -272,7 +272,13 @@ def main():
 		def handle_success(result):
 			try:
 				requeue(True)
-				timing, gen, q, data = result
+				if 'manager' not in submitvars:
+					submitvars['manager'] = Pyro5.api.Proxy(url)
+				if result[0] == 'elo':
+					_, manager_id, teams, total_score, wins = result
+					submitvars['manager'].submit_elo(manager_id, teams, total_score, wins)
+					return
+				_, timing, gen, q, data = result
 
 				submitvars['count'] = submitvars['count'] + 1
 				submitvars['sumcount'] = submitvars['sumcount'] + 1
@@ -286,8 +292,6 @@ def main():
 					submitvars['lastspeed'] = perf
 					print(f'Block {count:06}: {perf:.3f} s/sample')
 
-				if 'manager' not in submitvars:
-					submitvars['manager'] = Pyro5.api.Proxy(url)
 				submitvars['manager'].store_block(gen, q, data)
 				if (submitvars['count'] % (numcores // 2)) == 0:
 					submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores, submitvars['starttime'], submitvars['pausetime'].total_seconds())
