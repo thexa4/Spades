@@ -16,6 +16,7 @@ class LearnSyncManager(object):
         self.blocksize = blocksize
         self.elo_managers = elo_managers
         self.elosize = elosize
+        self.learning = False
 
         self.generation = 1
 
@@ -97,7 +98,8 @@ class LearnSyncManager(object):
         result = EloRoundResult(team, total_score, wins)
         with manager.lock:
             team.record_score(result.wins[1], result.wins[0])
-        print(result)
+        if not self.learning:
+            print(result)
 
     @Pyro5.server.expose
     def get_generation(self):

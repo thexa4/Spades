@@ -92,7 +92,7 @@ def main():
 
 	elomanager_double = EloManager('double')
 	elomanager_single = EloManager('single')
-	
+
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
 	manager = LearnSyncManager(game_count = 1024 * 1024 * 32, elo_managers=[elomanager_double, elomanager_single])
 	uri = daemon.register(manager, objectId='spades1')
@@ -107,6 +107,7 @@ def main():
 
 	while True:
 		if manager.is_done():
+			manager.learning = True
 			learn(1, manager.generation)
 			learn(2, manager.generation)
 			for q in [1,2]:
@@ -114,6 +115,7 @@ def main():
 				elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}', f'q{q}/gen{manager.generation:03}.tflite')
 				elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}', f'q{q}/gen{manager.generation:03}.tflite')
 			manager.advance_generation()
+			manager.learning = False
 
 			print(f'Generation {manager.generation}:')
 		if random.random() > 0.5:

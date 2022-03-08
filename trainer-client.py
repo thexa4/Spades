@@ -136,7 +136,7 @@ def work_fetcher(url, submitvars):
 	def get_todo(s):
 		manager = s['manager']
 
-		if datetime.datetime.utcnow() - s['last_fetch'] > datetime.timedelta(seconds=60):
+		if datetime.datetime.utcnow() - s['last_fetch'] > datetime.timedelta(seconds=10):
 			fetched = manager.fetch_todo_params()
 			new_generation = fetched[1]
 
@@ -208,7 +208,6 @@ def perform_work_block(gen, q, blocksize):
 		return ('block', sumtime / count, gen, q, b.getvalue())
 
 def perform_work_elo(manager_id, teams, rounds):
-	print(teams)
 	def lookup_player(p):
 		if p == 'random':
 			return RandomPlayer()

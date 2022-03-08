@@ -22,7 +22,7 @@ class EloRoundResult:
         percentage = 'n/a%'
         if self.wins[0] + self.wins[1] > 0:
             percentage = str(int(self.wins[0] / (self.wins[0] + self.wins[1]) * 100)) + '%'
-        return f'{self.team}: {self.score[0]} vs {self.score[1]}, {percentage}'
+        return f'{self.team}: {self.score[0]} [{self.wins[0]}] vs {self.score[1]} [{self.wins[1]}], {percentage}'
 
 class EloTeam:
     def __init__(self, team1, team2):
@@ -171,7 +171,7 @@ class EloManager:
         if team == None:
             team = self.generate_high_entropy_team()
 
-        result = team.play(5)       
+        result = team.play(10)       
         with self.lock:
             team.record_score(result.wins[1], result.wins[0])
         
