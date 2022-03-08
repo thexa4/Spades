@@ -25,8 +25,8 @@ from max2.elo import EloManager
 from max2.inference_player import InferencePlayer
 
 def lr_schedule(epoch, lr):
-	min_lr = math.log(0.00001)
-	max_lr = math.log(0.0003 / math.sqrt(epoch + 1))
+	min_lr = math.log(0.00015)
+	max_lr = math.log(0.0005 / math.sqrt(epoch + 1))
 
 	length = 4
 	pos = abs((length - (epoch % (length * 2))) / length)
@@ -42,7 +42,11 @@ def learn(q, generation):
 	validationsamples = infile[:validation_count]
 	datasamples = infile[validation_count:]
 	
-	batchsize = 5 * 1024
+	size = 384
+	#size = 4096
+	depth = 20
+	batchsize = 1024 * int(192 * 1024 * 1024 / size / size / depth)
+	print(f"Batchsize: {batchsize}")
 
 	d = tf.data.Dataset.from_tensors(datasamples)
 	d = d.unbatch()
@@ -56,19 +60,19 @@ def learn(q, generation):
 	v = max2.dataset.load(v, batchsize)
 	v = v.cache()
 	
-	inference_model, training_model = max2.model.create()
+	inference_model, training_model = max2.model.create_v2(size)
 
 	training_model.compile(
 		loss=tf.keras.losses.MeanSquaredError(reduction="auto", name="mean_squared_error"),
 		optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001)
 	)
 
-	tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
+	#tb_callback = tf.keras.callbacks.TensorBoard(f'max2/data/q{q}/gen{generation:03}/logs', update_freq=1, profile_batch=0)
 	stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
-	lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
-	callbacks = [lr_callback, tb_callback]
-	callbacks.append(stop_callback)
+	#lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=0)
+	callbacks = [stop_callback]
+	#callbacks.append(stop_callback)
 	training_model.fit(d, validation_data=v, epochs=30, callbacks=callbacks)
 	inference_model.save(f'max2/models/q{q}/gen{generation:03}.model')
 
@@ -97,8 +101,8 @@ def main():
 	for i in range(manager.generation - 1):
 		for q in [1,2]:
 			path = f'max2/models/server/model-g{i+1:03}-q{q}.tflite'
-			elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}')
-			elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}')
+			elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}', f'q{q}/gen{i+1:03}.tflite')
+			elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{i+1:03}-q{q}', f'q{q}/gen{i+1:03}.tflite')
 
 	while True:
 		if manager.is_done():
@@ -106,8 +110,8 @@ def main():
 			learn(2, manager.generation)
 			for q in [1,2]:
 				path = f'max2/models/server/model-g{manager.generation:03}-q{q}.tflite'
-				elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}')
-				elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}')
+				elomanager_single.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}', f'q{q}/gen{manager.generation:03}.tflite')
+				elomanager_double.add_player(lambda: InferencePlayer(max2.model.loadraw(path)), path, f'g{manager.generation:03}-q{q}', f'q{q}/gen{manager.generation:03}.tflite')
 			manager.advance_generation()
 
 			print(f'Generation {manager.generation}:')

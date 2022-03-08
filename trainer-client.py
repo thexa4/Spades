@@ -114,48 +114,74 @@ def dataset(generation, driver, models, blocks=1, rounds=1):
 	return result.unbatch()
 
 def work_fetcher(url, submitvars):
-	manager = Pyro5.api.Proxy(url)
-	last_generation = None
-	paused = False
-	pausetime = None
-	last_fetch = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
-	todo_params = None
+	state = {
+		'manager': Pyro5.api.Proxy(url),
+		'last_fetch': datetime.datetime.utcnow() - datetime.timedelta(minutes=60),
+		'last_generation': None,
+		'last_probability': None,
+		'last_size': None,
+	}
+	manager = state['manager']
+	
+	def resync_models(manager, gen):
+		for i in range(gen - 1):
+			for q in [0, 1]:
+				if not exists(f'max2/models/q{q + 1}/gen{i + 1:03}.tflite'):
+					os.makedirs(f'max2/models/q{q + 1}/', exist_ok=True)
+					with open(f'max2/models/q{q + 1}/gen{i + 1:03}.tflite', 'xb') as f:
+						f.write(serpent.tobytes(manager.get_model(i, q)))
 
+	def get_todo(s):
+		manager = s['manager']
+
+		if datetime.datetime.utcnow() - s['last_fetch'] > datetime.timedelta(seconds=60):
+			fetched = manager.fetch_todo_params()
+			new_generation = fetched[1]
+
+			if s['last_generation'] != new_generation:
+				s['last_generation'] = new_generation
+				resync_models(manager, new_generation)
+
+			if fetched[0] == 'elo':
+				return fetched
+			if fetched[0] == 'pause':
+				return fetched
+
+			_, _, probability, size = fetched
+			s['last_fetch'] = datetime.datetime.utcnow()
+			s['last_probability'] = probability
+			s['last_size'] = size
+		
+		return ('block', s['last_generation'], random.choices([0, 1], s['last_probability'])[0], s['last_size'])
+
+
+	paused_at = None
 	while True:
-		if datetime.datetime.utcnow() - last_fetch > datetime.timedelta(seconds=60):
-			todo_params = manager.fetch_todo_params()
-			last_fetch = datetime.datetime.utcnow()
-		unpacked = None
-		if todo_params != None:
-			gen, probabilities, size = todo_params
-			unpacked = (gen, random.choices([0, 1], probabilities)[0], size)
-		if unpacked == None:
-			if not paused:
-				paused = True
-				pausetime = datetime.datetime.utcnow()
+		todo = get_todo(state)
+		if todo[0] == 'pause':
+			if paused_at == None:
 				print('paused')
+				paused_at = datetime.datetime.utcnow()
 			time.sleep(1)
-			continue
 		else:
-			if paused:
-				paused = False
-				submitvars['pausetime'] += datetime.datetime.utcnow() - pausetime
-				pausetime = None
+			if paused_at != None:
 				print('resuming')
-		gen, q, blocksize = unpacked
+				submitvars['pausetime'] += datetime.datetime.utcnow() - paused_at
+				paused_at = None
+			yield todo
 
-		if gen != last_generation:
-			last_generation = gen
-			for i in range(gen - 1):
-				for q in [0, 1]:
-					if not exists(f'max2/models/q{q + 1}/gen{i + 1:03}.tflite'):
-						os.makedirs(f'max2/models/q{q + 1}/', exist_ok=True)
-						with open(f'max2/models/q{q + 1}/gen{i + 1:03}.tflite', 'xb') as f:
-							f.write(serpent.tobytes(manager.get_model(i, q)))
+def perform_work(kind, params):
+	if kind == 'block':
+		gen, q, blocksize = params
+		return perform_work_block(gen, q, blocksize)
+	
+	if kind == 'elo':
+		gen, teams = params
+		return perform_work_elo(teams)
+	
+	raise 'Unknown task: ' + kind
 
-		yield (gen, q, blocksize)
-
-def perform_work(gen, q, blocksize):
+def perform_work_block(gen, q, blocksize):
 	driver = None
 	models = []
 	if gen > 1:
@@ -178,6 +204,10 @@ def perform_work(gen, q, blocksize):
 					f.write(blockdata)
 				sumtime = sumtime + (time.perf_counter() - start)
 		return (sumtime / count, gen, q, b.getvalue())
+
+def perform_work_elo(teams):
+	print(teams)
+	raise 'elo'
 
 
 def main():
@@ -252,8 +282,10 @@ def main():
 					
 			else:
 				job = next(iterable)
-				
-			p.apply_async(perform_work, job, {}, handle_success, handle_error)
+			kind = job[0]
+			params = job[1:]
+
+			p.apply_async(perform_work, (kind, params), {}, handle_success, handle_error)
 
 		for i in range(numcores + 2):
 			requeue(False)

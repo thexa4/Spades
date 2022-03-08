@@ -10,7 +10,11 @@ def display_leaderboard(strategy, board, limit):
 		print(f"{strategy + ' first ' + str(limit):<16s}\tTskill\tMu")
 	ranked = sorted(board, key = lambda x: x['trueskill'], reverse=True)
 	for rank in ranked[:limit]:
-		print(f"{rank['label']:<16s}\t{rank['trueskill']:.2f}\t{rank['mu']:.2f}")
+		label = rank['label']
+		parts = label.split('-')
+		if len(parts) == 3:
+			label = '-'.join([parts[0], parts[2], parts[1]])
+		print(f"{label:<16s}\t{rank['trueskill']:.2f}\t{rank['mu']:.2f}")
 	print()
 
 def main():

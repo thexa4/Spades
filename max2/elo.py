@@ -9,6 +9,7 @@ import random
 import itertools
 import math
 import concurrent.futures
+import threading
 from os.path import exists
 
 class EloRoundResult:
@@ -55,7 +56,6 @@ class EloTeam:
             player.update_rank(rank)
     
     def play(self, rounds):
-
         scores = [0,0]
         wins = [0,0]
 
@@ -88,18 +88,16 @@ class EloTeam:
                 if score[1] > score[0]:
                     wins[1] = wins[1] + 1
 
-        self.record_score(wins[1], wins[0])
-
         return EloRoundResult(self, scores, wins)
-        
 
 class EloPlayer:
-    def __init__(self, playerfunc, path, strategy, label):
+    def __init__(self, playerfunc, path, strategy, label, remote_path):
         self.modelpath = path
         self.elodatapath = path + '.' + strategy + '.elo'
         self.score = trueskill.Rating()
         self.label = label
         self.playerfunc = playerfunc
+        self.remote_path = remote_path
 
         if exists(self.elodatapath):
             mu = 25
@@ -121,22 +119,24 @@ class EloPlayer:
 
 class EloManager:
     def __init__(self, strategy):
+        self.lock = threading.Lock()
         self.strategy = strategy
 
         if strategy != 'single' and strategy != 'double':
             raise Exception("Strategy should be either single or double.")
         
         self.pool = [
-            EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead'),
-            EloPlayer(lambda: RandomPlayer(), 'max2/models/server/random', self.strategy, 'Random')
+            EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead', 'braindead'),
+            EloPlayer(lambda: RandomPlayer(), 'max2/models/server/random', self.strategy, 'Random', 'random')
         ]
     
-    def add_player(self, playerfunc, path, label):
-        newplayer = EloPlayer(playerfunc, path, self.strategy, label)
-        for p in self.pool:
-            if p.elodatapath == newplayer.elodatapath:
-                raise Exception("Player already in pool")
-        self.pool.append(newplayer)
+    def add_player(self, playerfunc, path, label, remote_path):
+        newplayer = EloPlayer(playerfunc, path, self.strategy, label, remote_path)
+        with self.lock:
+            for p in self.pool:
+                if p.elodatapath == newplayer.elodatapath:
+                    raise Exception("Player already in pool")
+            self.pool.append(newplayer)
 
     def generate_team(self):
         if self.strategy == 'double' and len(self.pool) < 2:
@@ -148,7 +148,8 @@ class EloManager:
         if self.strategy == 'single':
             teamsize = 2
         
-        players = random.sample(self.pool, 2 * teamsize)
+        with self.lock:
+            players = random.sample(self.pool, 2 * teamsize)
         team1 = players[:teamsize]
         team2 = players[teamsize:]
         
@@ -165,5 +166,6 @@ class EloManager:
         if team == None:
             team = self.generate_high_entropy_team()
 
-        return team.play(5)       
-
+        result = team.play(5)       
+        with self.lock:
+            team.record_score(result.wins[1], result.wins[0])
