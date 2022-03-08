@@ -89,15 +89,16 @@ def learn(q, generation):
 
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
+
+	elomanager_double = EloManager('double')
+	elomanager_single = EloManager('single')
+	
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
-	manager = LearnSyncManager(game_count = 1024 * 1024 * 32)
+	manager = LearnSyncManager(game_count = 1024 * 1024 * 32, elo_managers=[elomanager_double, elomanager_single])
 	uri = daemon.register(manager, objectId='spades1')
 	print(uri)
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
 	daemon_thread.start()
-
-	elomanager_double = EloManager('double')
-	elomanager_single = EloManager('single')
 	for i in range(manager.generation - 1):
 		for q in [1,2]:
 			path = f'max2/models/server/model-g{i+1:03}-q{q}.tflite'

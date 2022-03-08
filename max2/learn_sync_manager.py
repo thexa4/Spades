@@ -9,10 +9,11 @@ from os.path import exists
 
 @Pyro5.server.behavior(instance_mode='single')
 class LearnSyncManager(object):
-    def __init__(self, game_count = 8 * 1024 * 1024, blocksize = 1024, elo_manager = None):
+    def __init__(self, game_count = 8 * 1024 * 1024, blocksize = 1024, elo_managers = [], elosize = 50):
         self.desired_block_count = math.ceil(game_count / blocksize)
         self.blocksize = blocksize
-        self.elo_manager = elo_manager
+        self.elo_managers = elo_managers
+        self.elosize = elosize
 
         self.generation = 1
 
@@ -37,13 +38,16 @@ class LearnSyncManager(object):
         return self.hostreports
 
     def create_elo_todo(self):
-        if not self.elo_manager:
+        if len(self.elo_managers) == 0:
             return ('pause', self.generation)
         
-        team = self.elo_manager.generate_high_entropy_team()
+        manager_id = random.choice([0,1])
+        manager = self.elo_managers[manager_id]
+
+        team = manager.generate_high_entropy_team()
         team1 = [x.remote_path for x in team.teams[0]]
         team2 = [x.remote_path for x in team.teams[1]]
-        return ('elo', self.generation, [team1, team2])
+        return ('elo', self.generation, manager_id, [team1, team2])
 
     @Pyro5.server.expose
     def fetch_todo(self):
@@ -59,8 +63,10 @@ class LearnSyncManager(object):
         with self.lock:
             todo = self.blocks_left[0] + self.blocks_left[1]
             if todo == 0:
-                return ('pause', self.generation)
-            return (self.generation, self.blocks_left, self.blocksize)
+                return self.create_elo_todo()
+            if random.random() > 0.5:
+                return self.create_elo_todo()
+            return ('block', self.generation, self.blocks_left, self.blocksize)
     
     @Pyro5.server.expose
     def store_block(self, gen, q, block):

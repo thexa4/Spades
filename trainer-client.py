@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import os
+
+from braindead_player import BraindeadPlayer
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -176,10 +178,10 @@ def perform_work(kind, params):
 		return perform_work_block(gen, q, blocksize)
 	
 	if kind == 'elo':
-		gen, teams = params
-		return perform_work_elo(teams)
+		gen, manager_id, teams, count = params
+		return perform_work_elo(manager_id, teams, count)
 	
-	raise 'Unknown task: ' + kind
+	raise ValueError('Unknown task: ' + kind)
 
 def perform_work_block(gen, q, blocksize):
 	driver = None
@@ -203,11 +205,39 @@ def perform_work_block(gen, q, blocksize):
 					blockdata = arr.tobytes()
 					f.write(blockdata)
 				sumtime = sumtime + (time.perf_counter() - start)
-		return (sumtime / count, gen, q, b.getvalue())
+		return ('block', sumtime / count, gen, q, b.getvalue())
 
-def perform_work_elo(teams):
-	print(teams)
-	raise 'elo'
+def perform_work_elo(manager_id, teams, rounds):
+
+	def lookup_player(p):
+		if p == 'random':
+			return RandomPlayer()
+		if p == 'braindead':
+			return BraindeadPlayer()
+		return InferencePlayer(max2.model.loadraw(p))
+
+	team1, team2 = teams
+
+	if len(team1) == 1:
+		players = [team1[0], team2[0], team1[0], team2[0]]
+	else:
+		players = [team1[0], team2[0], team1[1], team2[1]]
+	players = [lookup_player(x) for x in players]
+	manager = GameManager(players)
+
+	total_score = [0,0]
+	wins = [0,0]
+	for i in range(rounds):
+		round_score = manager.play_game()
+		total_score[0] = total_score[0] + round_score[0]
+		total_score[1] = total_score[1] + round_score[1]
+
+		if round_score[0] > round_score[1]:
+			wins[0] = wins[0] + 1
+		if round_score[1] > round_score[0]:
+			wins[1] = wins[1] + 1
+
+	return ('elo', manager_id, teams, total_score, wins)
 
 
 def main():

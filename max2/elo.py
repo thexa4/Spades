@@ -169,3 +169,5 @@ class EloManager:
         result = team.play(5)       
         with self.lock:
             team.record_score(result.wins[1], result.wins[0])
+        
+        return result
