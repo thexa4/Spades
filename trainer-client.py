@@ -208,7 +208,7 @@ def perform_work_block(gen, q, blocksize):
 		return ('block', sumtime / count, gen, q, b.getvalue())
 
 def perform_work_elo(manager_id, teams, rounds):
-
+	print(teams)
 	def lookup_player(p):
 		if p == 'random':
 			return RandomPlayer()
@@ -229,8 +229,8 @@ def perform_work_elo(manager_id, teams, rounds):
 	wins = [0,0]
 	for i in range(rounds):
 		round_score = manager.play_game()
-		total_score[0] = total_score[0] + round_score[0]
-		total_score[1] = total_score[1] + round_score[1]
+		total_score[0] = total_score[0] + int(round_score[0])
+		total_score[1] = total_score[1] + int(round_score[1])
 
 		if round_score[0] > round_score[1]:
 			wins[0] = wins[0] + 1

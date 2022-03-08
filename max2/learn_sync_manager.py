@@ -7,9 +7,11 @@ import os
 import datetime
 from os.path import exists
 
+from max2.elo import EloRoundResult, EloTeam
+
 @Pyro5.server.behavior(instance_mode='single')
 class LearnSyncManager(object):
-    def __init__(self, game_count = 8 * 1024 * 1024, blocksize = 1024, elo_managers = [], elosize = 50):
+    def __init__(self, game_count = 8 * 1024 * 1024, blocksize = 1024, elo_managers = [], elosize = 10):
         self.desired_block_count = math.ceil(game_count / blocksize)
         self.blocksize = blocksize
         self.elo_managers = elo_managers
@@ -82,6 +84,20 @@ class LearnSyncManager(object):
 
             with open(f'max2/data/q{q + 1}/gen{gen:03}/samples/{block_id:06}.flat.gz', 'xb') as f:
                 f.write(block)
+    
+    @Pyro5.server.expose
+    def submit_elo(self, manager_id, teams, total_score, wins):
+        manager = self.elo_managers[manager_id]
+
+        team1, team2 = teams
+        team1 = [manager.lookup[x] for x in team1]
+        team2 = [manager.lookup[x] for x in team2]
+
+        team = EloTeam(team1, team2)
+        result = EloRoundResult(team, total_score, wins)
+        with manager.lock:
+            team.record_score(result.wins[1], result.wins[0])
+        print(result)
 
     @Pyro5.server.expose
     def get_generation(self):

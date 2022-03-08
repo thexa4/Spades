@@ -129,6 +129,10 @@ class EloManager:
             EloPlayer(lambda: BraindeadPlayer(), 'max2/models/server/braindead', self.strategy, 'Braindead', 'braindead'),
             EloPlayer(lambda: RandomPlayer(), 'max2/models/server/random', self.strategy, 'Random', 'random')
         ]
+        self.lookup = {
+            'braindead': self.pool[0],
+            'random': self.pool[1],
+        }
     
     def add_player(self, playerfunc, path, label, remote_path):
         newplayer = EloPlayer(playerfunc, path, self.strategy, label, remote_path)
@@ -137,6 +141,7 @@ class EloManager:
                 if p.elodatapath == newplayer.elodatapath:
                     raise Exception("Player already in pool")
             self.pool.append(newplayer)
+            self.lookup[remote_path] = newplayer
 
     def generate_team(self):
         if self.strategy == 'double' and len(self.pool) < 2:
