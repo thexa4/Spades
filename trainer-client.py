@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import hashlib
 import os
 
 from braindead_player import BraindeadPlayer
@@ -248,14 +249,24 @@ def main():
 	url = sys.argv[1]
 	numcores = int(sys.argv[2])
 
+	maxgenerations = 1
 	if exists('max2/models/q1'):
-		for filename in os.listdir('max2/models/q1/'):
-			if filename.endswith('.tflite'):
-				os.unlink('max2/models/q1/' + filename)
+		maxgenerations = max(maxgenerations, len(os.listdir('max2/models/q1')))
 	if exists('max2/models/q2'):
-		for filename in os.listdir('max2/models/q2/'):
-			if filename.endswith('.tflite'):
-				os.unlink('max2/models/q2/' + filename)
+		maxgenerations = max(maxgenerations, len(os.listdir('max2/models/q2')))
+	
+	startupmanager = Pyro5.api.Proxy(url)
+	for i in range(maxgenerations):
+		for q in [0,1]:
+			filename = f'max2/models/q{q + 1}/gen{i + 1:03}.tflite'
+			if exists(filename):
+				with open(filename, 'rb') as f:
+					data = f.read()
+				digest = hashlib.sha3_256(data).hexdigest()
+				if digest != manager.get_model_digest(i, q):
+					os.unlink(filename)
+					
+	del startupmanager
 
 	sys.excepthook = Pyro5.errors.excepthook
 	manager = Pyro5.api.Proxy(url)

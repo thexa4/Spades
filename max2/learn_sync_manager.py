@@ -1,3 +1,4 @@
+import hashlib
 import math
 import random
 import Pyro5.server
@@ -111,6 +112,11 @@ class LearnSyncManager(object):
     def get_generation(self):
         with self.lock:
             return self.generation
+
+    @Pyro5.server.expose
+    def get_model_digest(self, gen, q):
+        with self.lock:
+            return hashlib.sha3_256(self.models[q][gen]).hexdigest()
 
     @Pyro5.server.expose
     def get_model(self, gen, q):
