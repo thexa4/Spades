@@ -263,9 +263,8 @@ def main():
 				with open(filename, 'rb') as f:
 					data = f.read()
 				digest = hashlib.sha3_256(data).hexdigest()
-				if digest != manager.get_model_digest(i, q):
+				if digest != startupmanager.get_model_digest(i, q):
 					os.unlink(filename)
-					
 	del startupmanager
 
 	sys.excepthook = Pyro5.errors.excepthook
