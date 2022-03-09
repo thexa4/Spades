@@ -65,7 +65,7 @@ class LearnSyncManager(object):
         with self.lock:
             if self.blocks_left[0] + self.blocks_left[1] == 0:
                 return self.create_elo_todo()
-            if random.random() > (1 - self.elopercentage)
+            if random.random() > (1 - self.elopercentage):
                 return self.create_elo_todo()
             return ('block', self.generation, random.choices([0, 1], self.blocks_left)[0], self.blocksize)
 

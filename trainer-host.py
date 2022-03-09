@@ -20,6 +20,7 @@ import math
 import Pyro5
 import threading
 import time
+import trueskill
 from max2.learn_sync_manager import LearnSyncManager
 from max2.elo import EloManager
 from max2.inference_player import InferencePlayer
@@ -90,6 +91,7 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 
+	trueskill.setup(draw_probability=0.00007)
 	elomanager_double = EloManager('double')
 	elomanager_single = EloManager('single')
 
