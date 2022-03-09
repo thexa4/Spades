@@ -105,7 +105,7 @@ class EloPlayer:
             with open(self.elodatapath, 'r') as f:
                 mu = float(f.readline())
                 sigma = float(f.readline())
-            self.score = trueskill.Rating(mu = mu, sigma = sigma)
+            self.score = trueskill.Rating(mu = mu, sigma = sigma, draw_probability=0.00007)
         
     def update_rank(self, rank):
         self.score = rank

@@ -16,6 +16,7 @@ class LearnSyncManager(object):
         self.blocksize = blocksize
         self.elo_managers = elo_managers
         self.elosize = elosize
+        self.elopercentage = 0.1
         self.learning = False
 
         self.generation = 1
@@ -37,9 +38,16 @@ class LearnSyncManager(object):
         pass
 
     @Pyro5.server.expose
+    def get_elo_percentage(self):
+        if self.learning:
+            return 1.0
+        return self.elopercentage
+
+    @Pyro5.server.expose
     def get_client_reports(self):
         return self.hostreports
 
+    @Pyro5.server.expose
     def create_elo_todo(self):
         if len(self.elo_managers) == 0:
             return ('pause', self.generation)
@@ -57,7 +65,7 @@ class LearnSyncManager(object):
         with self.lock:
             if self.blocks_left[0] + self.blocks_left[1] == 0:
                 return self.create_elo_todo()
-            if random.random() > 0.99:
+            if random.random() > (1 - self.elopercentage)
                 return self.create_elo_todo()
             return ('block', self.generation, random.choices([0, 1], self.blocks_left)[0], self.blocksize)
 
@@ -66,8 +74,6 @@ class LearnSyncManager(object):
         with self.lock:
             todo = self.blocks_left[0] + self.blocks_left[1]
             if todo == 0:
-                return self.create_elo_todo()
-            if random.random() > 0.5:
                 return self.create_elo_todo()
             return ('block', self.generation, self.blocks_left, self.blocksize)
     

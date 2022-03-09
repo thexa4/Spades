@@ -121,6 +121,7 @@ def work_fetcher(url, submitvars):
 		'last_fetch': datetime.datetime.utcnow() - datetime.timedelta(minutes=60),
 		'last_generation': None,
 		'last_probability': None,
+		'last_elo_probability': 0,
 		'last_size': None,
 	}
 	manager = state['manager']
@@ -153,7 +154,11 @@ def work_fetcher(url, submitvars):
 			s['last_fetch'] = datetime.datetime.utcnow()
 			s['last_probability'] = probability
 			s['last_size'] = size
+			s['last_elo_probability'] = manager.get_elo_percentage()
 		
+		if random.random() > (1 - s['last_elo_probability']):
+			return manager.create_elo_todo()
+
 		return ('block', s['last_generation'], random.choices([0, 1], s['last_probability'])[0], s['last_size'])
 
 
