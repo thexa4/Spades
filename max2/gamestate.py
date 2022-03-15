@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 class GameState:
-    def __init__(self, model, training=False):
+    def __init__(self, model, training=False, temperature=1):
         self.bid_state = {'bids': {}, 'hand': [], 'bags': []}
         self.chosen_bid = None
         self.seen = [0] * 52
@@ -15,7 +15,7 @@ class GameState:
         self.samples = []
         self.model = model
         self.training = training
-        self.temperature = 1
+        self.temperature = temperature
 
     def thermometer(self, size, n):
         result = [0] * size

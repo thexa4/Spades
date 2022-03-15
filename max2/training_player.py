@@ -1,5 +1,6 @@
 from i_player import IPlayer
 from max2.gamestate import GameState
+import math
 
 class TrainingPlayer(IPlayer):
 	""""Collects samples for training"""
@@ -18,8 +19,8 @@ class TrainingPlayer(IPlayer):
 
 	def make_bid(self, bids):
 		self.scored = False
-		self.state = GameState(self.model, training=True)
-		self.state.temperature = 4.0 / self.generation
+		temp = 4.0 / math.sqrt(self.generation)
+		self.state = GameState(self.model, training=True, temperature=temp)
 		self.round = 0
 		return self.state.bid(self.hand, bids, self.score)
 	def announce_bids(self, bids):

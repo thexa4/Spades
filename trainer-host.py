@@ -91,7 +91,7 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 
-	trueskill.setup(draw_probability=0.00007)
+	trueskill.setup(draw_probability=0.2461)
 	elomanager_double = EloManager('double')
 	elomanager_single = EloManager('single')
 

@@ -17,7 +17,7 @@ class LearnSyncManager(object):
         self.blocksize = blocksize
         self.elo_managers = elo_managers
         self.elosize = elosize
-        self.elopercentage = 0.1
+        self.elopercentage = 0.03
         self.learning = False
 
         self.generation = 1
@@ -104,7 +104,7 @@ class LearnSyncManager(object):
         team = EloTeam(team1, team2)
         result = EloRoundResult(team, total_score, wins)
         with manager.lock:
-            team.record_score(result.wins[1], result.wins[0])
+            team.record_score(result.wins[0], result.wins[1])
         if not self.learning:
             print(result)
 
