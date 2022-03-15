@@ -106,7 +106,7 @@ class LearnSyncManager(object):
         with manager.lock:
             team.record_score(result.wins[0], result.wins[1])
         if not self.learning:
-            print(result)
+            print(f'{result} [foreign]')
 
     @Pyro5.server.expose
     def get_generation(self):

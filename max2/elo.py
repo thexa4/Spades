@@ -47,7 +47,7 @@ class EloTeam:
         return ts.cdf(delta_mu / denom)
     
     def record_score(self, team1_score, team2_score):
-        rank = [team1_score, team2_score]
+        rank = [team2_score, team1_score]
 
         t1_rank, t2_rank = trueskill.rate([[p.score for p in self.teams[0]], [p.score for p in self.teams[1]]], ranks=rank)
         players = [*self.teams[0], *self.teams[1]]
@@ -173,6 +173,6 @@ class EloManager:
 
         result = team.play(10)       
         with self.lock:
-            team.record_score(result.wins[1], result.wins[0])
+            team.record_score(result.wins[0], result.wins[1])
         
         return result
