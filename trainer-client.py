@@ -138,7 +138,7 @@ def work_fetcher(url, submitvars):
 	def get_todo(s):
 		manager = s['manager']
 
-		if datetime.datetime.utcnow() - s['last_fetch'] > datetime.timedelta(seconds=10):
+		if datetime.datetime.utcnow() - s['last_fetch'] > datetime.timedelta(seconds=60):
 			fetched = manager.fetch_todo_params()
 			new_generation = fetched[1]
 

@@ -91,12 +91,12 @@ def learn(q, generation):
 def main():
 	Pyro5.config.SERVERTYPE = 'multiplex'
 
-	trueskill.setup(draw_probability=0.2461)
+	trueskill.setup(draw_probability=0.2461, tau=0.005)
 	elomanager_double = EloManager('double')
 	elomanager_single = EloManager('single')
 
 	daemon = Pyro5.server.Daemon(host='2001:41f0:c01:41::4252', port=51384)
-	manager = LearnSyncManager(game_count = 1024 * 1024 * 32, elo_managers=[elomanager_double, elomanager_single])
+	manager = LearnSyncManager(game_count = 1024 * 1024 * 48, elo_managers=[elomanager_double, elomanager_single])
 	uri = daemon.register(manager, objectId='spades1')
 	print(uri)
 	daemon_thread = threading.Thread(target=daemon.requestLoop)
