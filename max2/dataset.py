@@ -78,7 +78,6 @@ def decode(is_bytes, raw):
     return (inputs, outputs)
 
 def load_raw(dataset, batchsize=64 * 1024):
-    result = dataset.shuffle(256 * 1024)
     result = result.batch(batchsize)
     result = result.map(partial(decode, True))
 
