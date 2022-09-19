@@ -47,8 +47,11 @@ def encode(row_in, row_out):
     
     return tf.concat(elements, -1)
 
-def decode(batchsize, raw):
-    arr = tf.io.decode_raw(raw, tf.uint8)
+def decode(is_bytes, raw):
+    if is_bytes:
+        arr = raw
+    else:
+        arr = tf.io.decode_raw(raw, tf.uint8)
     fielddefs = keys()
     inputs = {}
     outputs = {}
@@ -74,10 +77,17 @@ def decode(batchsize, raw):
     
     return (inputs, outputs)
 
+def load_raw(dataset, batchsize=64 * 1024):
+    result = dataset.shuffle(256 * 1024)
+    result = result.batch(batchsize)
+    result = result.map(partial(decode, True))
+
+    return result
+
 def load(files, batchsize=64 * 1024):
     result = tf.data.FixedLengthRecordDataset(files, size(), num_parallel_reads=tf.data.AUTOTUNE, compression_type='GZIP')
     result = result.shuffle(256 * 1024)
     result = result.batch(batchsize)
-    result = result.map(partial(decode, batchsize))
+    result = result.map(partial(decode, False))
     
     return result

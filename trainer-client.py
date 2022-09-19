@@ -311,7 +311,7 @@ def main():
 					submitvars['manager'].submit_client_report(hostname, submitvars['count'], submitvars['lastspeed'], numcores, submitvars['starttime'], submitvars['pausetime'].total_seconds())
 			except Exception as e:
 				submitvars['crashed'] = True
-				print("Crash: " + e)
+				print("Crash: " + str(e))
 		
 		def handle_error(error):
 			submitvars['crashed'] = True
