@@ -1,14 +1,10 @@
 #!/usr/bin/python3
 
 import os
-os.environ['TF_GPU_THREAD_MODE'] = 'gpu_private'
-os.environ['TF_CUDNN_USE_AUTOTUNE'] = '0'
+import torch
 
-import tensorflow as tf
-gpus = tf.config.experimental.list_physical_devices('GPU')
-print("Num GPUs Available: ", len(gpus))
-for gpu in gpus:
-  tf.config.experimental.set_memory_growth(gpu, True)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using {device} device")
 
 import sys
 import pathlib
