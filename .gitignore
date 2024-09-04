@@ -105,3 +105,4 @@ ENV/
 
 # vs studio
 /.vs/
+.aider*
