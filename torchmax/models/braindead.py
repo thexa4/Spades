@@ -4,15 +4,18 @@ class BrainDead:
     def __init__(self):
         pass
 
-    def parameters():
+    def parameters(self):
         return []
+    
+    def memory_size(self):
+        return 1
 
     def bid(self, gamestate, prediction_bid_overrides=None):
         batchsize = gamestate.my_hand.shape[0]
         delta = torch.stack([torch.full((batchsize,), 8), torch.full((batchsize,), 0)])
 
         return {
-            "memory": None,
+            "memory": torch.tensor(42),
             "bids": torch.full((batchsize,), 3),
             "own_score_prediction": gamestate.team_score_mine + delta,
             "other_score_prediction": gamestate.team_score_other,
@@ -33,7 +36,7 @@ class BrainDead:
         delta = torch.stack([torch.full((batchsize,), 8), torch.full((batchsize,), 0)])
         
         return {
-            "memory": memory,
+            "memory": torch.tensor(42),
             "cards": highest_card_indexes,
             "own_score_prediction": gamestate.team_score_mine + delta,
             "other_score_prediction": gamestate.team_score_other,
