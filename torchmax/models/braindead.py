@@ -7,21 +7,20 @@ class BrainDead:
     def parameters(self):
         return []
     
-    def memory_size(self):
-        return 1
+    def with_temperature(self, temperature):
+        return self
 
     def bid(self, gamestate, prediction_bid_overrides=None):
         batchsize = gamestate.my_hand.shape[0]
         delta = torch.stack([torch.full((batchsize,), 8), torch.full((batchsize,), 0)])
 
         return {
-            "memory": torch.tensor(42),
             "bids": torch.full((batchsize,), 3),
-            "own_score_prediction": gamestate.team_score_mine + delta,
-            "other_score_prediction": gamestate.team_score_other,
+            "own_score_prediction": delta,
+            "other_score_prediction": torch.zeros((batchsize, 2)),
         }
 
-    def play(self, gamestate, memory, allowed_cards, prediction_indexes_overrides=None):
+    def play(self, gamestate, allowed_cards, prediction_indexes_overrides=None):
         batchsize = gamestate.my_hand.shape[0]
 
         values = torch.tensor([[
@@ -36,8 +35,7 @@ class BrainDead:
         delta = torch.stack([torch.full((batchsize,), 8), torch.full((batchsize,), 0)])
         
         return {
-            "memory": torch.tensor(42),
             "cards": highest_card_indexes,
-            "own_score_prediction": gamestate.team_score_mine + delta,
-            "other_score_prediction": gamestate.team_score_other,
+            "own_score_prediction": delta,
+            "other_score_prediction": torch.zeros((batchsize, 2)),
         }

@@ -6,18 +6,15 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 from game_manager import GameManager
 from braindead_player import BraindeadPlayer
-from max.tensor_player import TensorPlayer
 from max.random_player import RandomPlayer
-from max.predictor import Predictor
-from max2.inference_player import InferencePlayer
-from max2.training_player import TrainingPlayer
+from max.torch_player import TorchPlayer
 import numpy as np
-import max2.model
 import sys
 import trueskill
 import random
 import itertools
 import math
+import torch
 
 #https://github.com/sublee/trueskill/issues/1#issuecomment-149762508
 def win_probability(team1, team2):
@@ -41,18 +38,19 @@ def main():
 	pool = [
 		('Braindead', lambda: BraindeadPlayer()),
 		('Random', lambda: RandomPlayer()),
+		('Bidder q1 0', lambda: TorchPlayer('torchmax/results/q1-0000.pt')),
+		('Bidder q2 0', lambda: TorchPlayer('torchmax/results/q2-0000.pt')),
+		('Bidder q1 1', lambda: TorchPlayer('torchmax/results/q1-0001.pt')),
+		('Bidder q1 1', lambda: TorchPlayer('torchmax/results/q1-0001.pt')),
+		('Bidder q2 2', lambda: TorchPlayer('torchmax/results/q2-0002.pt')),
+		('Bidder q2 2', lambda: TorchPlayer('torchmax/results/q2-0002.pt')),
+		('Bidder q1 3', lambda: TorchPlayer('torchmax/results/q1-0003.pt')),
+		('Bidder q2 3', lambda: TorchPlayer('torchmax/results/q2-0003.pt')),
+		('Bidder q1 4', lambda: TorchPlayer('torchmax/results/q1-0004.pt')),
+		('Bidder q2 4', lambda: TorchPlayer('torchmax/results/q2-0004.pt')),
+		('Bidder q1 5', lambda: TorchPlayer('torchmax/results/q1-0005.pt')),
+		('Bidder q2 5', lambda: TorchPlayer('torchmax/results/q2-0005.pt')),
 	]
-
-	q1_models = []#[(f'Max {i:03}A', max2.model.load(1, i)) for i in range(1, 4)]
-	q2_models = [(f'Max {i:03}B', max2.model.load(2, i)) for i in range(1, 7)]
-	#q3_models = [('Inference 3 gen ' + str(i), max2.model.load(3, i)) for i in range(1,2)]#, 5)]
-	#q4_models = []#[('Inference 4 gen ' + str(i), max2.model.load(4, i)) for i in range(1, 6)]
-
-	models = q1_models + q2_models# + q3_models + q4_models
-
-	for pair in models:
-		name, model = pair
-		pool.append((name, lambda: InferencePlayer(model)))
 
 	estimators = [trueskill.Rating() for p in pool]
 

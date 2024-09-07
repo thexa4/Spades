@@ -106,3 +106,5 @@ ENV/
 # vs studio
 /.vs/
 .aider*
+torchmax/results/
+torchmax/results_bidder/
