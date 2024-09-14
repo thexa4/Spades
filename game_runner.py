@@ -2,25 +2,17 @@
 
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 from game_manager import GameManager
 from braindead_player import BraindeadPlayer
-from max.tensor_player import TensorPlayer
+from max.torch_player import TorchPlayer
 from max.random_player import RandomPlayer
-from max.predictor import Predictor
-from max2.inference_player import InferencePlayer
-from max2.training_player import TrainingPlayer
 import numpy as np
-import max2.model
 import sys
 
 def main():
-	model = max2.model.load(2,5)
-	t_p = [InferencePlayer(model), InferencePlayer(model)]
-	#b_p = [BraindeadPlayer() for i in range(2)]
-	model_prev = max2.model.load(2,4)
-	b_p = [InferencePlayer(model_prev), InferencePlayer(model_prev)]
+	b_p = [TorchPlayer('torchmax/results/q2-0005.pt'), TorchPlayer('torchmax/results/q2-0005.pt')]
+	t_p = [BraindeadPlayer(), BraindeadPlayer()]
 	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 	manager = GameManager(players)
 	rounds = 10
@@ -35,7 +27,5 @@ def main():
 			t_wins += 1
 		print(score)
 	print(str(b_wins) + " - " + str(t_wins))
-
-	print(len(t_p[1].samples))
 
 main()

@@ -160,35 +160,46 @@ class GameState:
             self.mask = mask.detach()
         else:
             self.mask = None
-    
+
     def fields(self):
         return {
-            "my_hand": self.my_hand,
-            "spades_played": self.spades_played,
-            "team_bid": self.team_bid,
-            "other_team_bid": self.other_team_bid,
-            "bid_mine": self.bid_mine,
-            "bid_teammate": self.bid_teammate,
-            "bid_left": self.bid_left,
-            "bid_right": self.bid_right,
-            "cards_played_me": self.cards_played_me,
-            "cards_played_teammate": self.cards_played_teammate,
-            self.cards_played_left,
-            self.cards_played_right,
-            self.team_score_mine,
-            self.team_score_other,
-            self.hands_won_mine,
-            self.hands_won_teammate,
-            self.hands_won_left,
-            self.hands_won_right,
-            self.players_left,
-            self.hand_number,
-            self.trick_wins_me,
-            self.trick_wins_teammate,
-            self.trick_wins_left,
-            self.trick_wins_right,
-            self.cards_seen,
+            field: getattr(self, field) for field in [
+                "my_hand",
+                "spades_played",
+                "team_bid",
+                "other_team_bid",
+                "bid_mine",
+                "bid_teammate",
+                "bid_left",
+                "bid_right",
+                "cards_played_me",
+                "cards_played_teammate",
+                "cards_played_left",
+                "cards_played_right",
+                "team_score_mine",
+                "team_score_other",
+                "hands_won_mine",
+                "hands_won_teammate",
+                "hands_won_left",
+                "hands_won_right",
+                "players_left",
+                "hand_number",
+                "trick_wins_me",
+                "trick_wins_teammate",
+                "trick_wins_left",
+                "trick_wins_right",
+                "cards_seen",
+            ]
         }
+    
+    def __add__(self, other):
+        other_fields = other.fields()
+        if self.my_hand == None:
+            return other
+        if other.my_hand == None:
+            return self
+        fields = {k: torch.concat([v, other_fields[k]], 0) for k,v in self.fields().items() if v != None}
+        return GameState(**fields, mask=torch.concat([self.mask, other.mask], 0))
     
     def combine(self, other_state, mask):
         if self.mask == None:
@@ -200,17 +211,26 @@ class GameState:
             
         combined = self.fields()
         other = other_state.fields()
-        for i in range(len(combined)):
-            prev = combined[i]
+        keys = list(combined.keys())
+        for i in range(len(keys)):
+            key = keys[i]
+            prev = combined[key]
             if prev == None:
-                combined[i] = other[i]
+                combined[key] = other[key]
             else:
                 non_batch_shape = prev.shape[1:]
 
                 if non_batch_shape == ():
-                    combined[i] = combined[i] + other[i] * mask
+                    combined[key] = combined[key] * self.mask + other[key] * mask
                 else:
-                    combined[i] = combined[i] + other[i] * torch.reshape(torch.outer(mask, torch.ones(math.prod(non_batch_shape))), (-1,) + non_batch_shape)
+                    shaped_mask = torch.ones(math.prod(non_batch_shape), device=self.mask.device)
+                    combined[key] = combined[key] * torch.reshape(torch.outer(self.mask, shaped_mask), (-1,) + non_batch_shape) + other[key] * torch.reshape(torch.outer(mask, shaped_mask), (-1,) + non_batch_shape)
             
-        return GameState(*combined, mask=torch.maximum(self.mask, mask))
+        return GameState(**combined, mask=torch.maximum(self.mask, mask))
 
+    def with_device(self, device):
+        fields = {k: v.to(device=device) for k,v in self.fields().items() if v != None}
+        return GameState(**fields, mask=self.mask.to(device=device))
+
+    def __str__(self):
+        return str({k: v[-1, ...] for k,v in self.fields().items()})

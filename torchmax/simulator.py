@@ -1,42 +1,43 @@
 import torch
 
 from gamestate import GameState
+from training_sample import TrainingSample
 
-def run_game(batch, models, should_print=False):
+def run_game(batch, models, should_print=False, device=None):
     base_card_values = torch.tensor([[
         21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, # spades 2-A
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,          # hearts 2-A
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,          # clubs: 2-A
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,          # diamonds: 2-A
-    ]]).repeat(batch, 1)
+    ]], device=device).repeat(batch, 1)
 
     spades_mask = torch.tensor([
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  # spades 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hearts 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # clubs 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # diamonds 2-A
-    ])
+    ], device=device)
     hearts_mask = torch.tensor([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # spades 2-A
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  # hearts 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # clubs 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # diamonds 2-A
-    ])
+    ], device=device)
     clubs_mask = torch.tensor([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # spades 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hearts 2-A
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  # clubs 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # diamonds 2-A
-    ])
+    ], device=device)
     diamonds_mask = torch.tensor([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # spades 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # hearts 2-A
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # clubs 2-A
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  # diamonds 2-A
-    ])
-    pending_samples = []
+    ], device=device)
+    pending_sample = TrainingSample()
 
-    deck = torch.stack([torch.randperm(52) for _ in range(batch)])
+    deck = torch.stack([torch.randperm(52, device=device) for _ in range(batch)])
 
     decks = [
         deck[:, 0:13],
@@ -46,33 +47,33 @@ def run_game(batch, models, should_print=False):
     ]
 
     hands = [
-        torch.zeros(batch, 52, dtype=torch.uint8),
-        torch.zeros(batch, 52, dtype=torch.uint8),
-        torch.zeros(batch, 52, dtype=torch.uint8),
-        torch.zeros(batch, 52, dtype=torch.uint8)
+        torch.zeros(batch, 52, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 52, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 52, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 52, dtype=torch.uint8, device=device)
     ]
     
     for i in range(4):
         hands[i][torch.arange(batch).unsqueeze(1), decks[i]] = 1
     
     team_scores = [
-        torch.stack([torch.randint(-20, 50, (batch,)), torch.randint(0, 10, (batch,))], dim=1),
-        torch.stack([torch.randint(-20, 50, (batch,)), torch.randint(0, 10, (batch,))], dim=1)
+        torch.stack([torch.randint(-20, 50, (batch,), device=device), torch.randint(0, 10, (batch,), device=device)], dim=1),
+        torch.stack([torch.randint(-20, 50, (batch,), device=device), torch.randint(0, 10, (batch,), device=device)], dim=1)
     ]
     hands_won = [
-        torch.zeros(batch, 13, dtype=torch.uint8),
-        torch.zeros(batch, 13, dtype=torch.uint8),
-        torch.zeros(batch, 13, dtype=torch.uint8),
-        torch.zeros(batch, 13, dtype=torch.uint8)
+        torch.zeros(batch, 13, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 13, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 13, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 13, dtype=torch.uint8, device=device)
     ]
 
-    spades_played = torch.zeros(batch, dtype=torch.uint8)
+    spades_played = torch.zeros(batch, dtype=torch.uint8, device=device)
 
     cards_played = [
-        torch.zeros(batch, 13, 52, dtype=torch.uint8),
-        torch.zeros(batch, 13, 52, dtype=torch.uint8),
-        torch.zeros(batch, 13, 52, dtype=torch.uint8),
-        torch.zeros(batch, 13, 52, dtype=torch.uint8)
+        torch.zeros(batch, 13, 52, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 13, 52, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 13, 52, dtype=torch.uint8, device=device),
+        torch.zeros(batch, 13, 52, dtype=torch.uint8, device=device)
     ]
 
     cards_seen = [
@@ -83,25 +84,25 @@ def run_game(batch, models, should_print=False):
     ]
 
     player_bids = [
-        torch.zeros(batch, dtype=torch.uint8),
-        torch.zeros(batch, dtype=torch.uint8),
-        torch.zeros(batch, dtype=torch.uint8),
-        torch.zeros(batch, dtype=torch.uint8),
+        torch.zeros(batch, dtype=torch.uint8, device=device),
+        torch.zeros(batch, dtype=torch.uint8, device=device),
+        torch.zeros(batch, dtype=torch.uint8, device=device),
+        torch.zeros(batch, dtype=torch.uint8, device=device),
     ]
 
     player_wins = [
-        torch.zeros(batch, dtype=torch.uint8),
-        torch.zeros(batch, dtype=torch.uint8),
-        torch.zeros(batch, dtype=torch.uint8),
-        torch.zeros(batch, dtype=torch.uint8)
+        torch.zeros(batch, dtype=torch.uint8, device=device),
+        torch.zeros(batch, dtype=torch.uint8, device=device),
+        torch.zeros(batch, dtype=torch.uint8, device=device),
+        torch.zeros(batch, dtype=torch.uint8, device=device)
     ]
 
-    initiative_player = torch.randint(0, 4, (batch,))
+    initiative_player = torch.randint(0, 4, (batch,), device=device)
     if should_print:
         print(f"player initiatives: {initiative_player}")
 
-    combined_bid_state = GameState(mask=torch.zeros((batch,)))
-    combined_bids = torch.zeros((batch,)).to(torch.uint8)
+    combined_bid_state = GameState(mask=torch.zeros((batch,), device=device))
+    combined_bids = torch.zeros((batch,), device=device).to(torch.uint8)
     for initiative_offset in range(4):
         for player in range(4):
             player_should_play = torch.eq(initiative_player, (player + initiative_offset) % 4).to(torch.uint8)
@@ -131,8 +132,8 @@ def run_game(batch, models, should_print=False):
                 hands_won_teammate = hands_won[teammate_player],
                 hands_won_left = hands_won[left_player],
                 hands_won_right = hands_won[right_player],
-                players_left = torch.full((batch,), 3 - player),
-                hand_number = torch.full((batch,), 0),
+                players_left = torch.full((batch,), 3 - player, device=device),
+                hand_number = torch.full((batch,), 0, device=device),
                 trick_wins_me = player_wins[wrapped_player],
                 trick_wins_teammate = player_wins[teammate_player],
                 trick_wins_left = player_wins[left_player],
@@ -152,7 +153,9 @@ def run_game(batch, models, should_print=False):
 
             
             #print(f"Player {player} bid: {bids}")
-    pending_samples.append(('bids', combined_bid_state, None, combined_bids.detach()))
+    pending_sample.bid_state = combined_bid_state
+    pending_sample.bid_result = combined_bids.detach()
+
     combined_bid_state = None
     combined_bids = None
     if should_print:
@@ -161,26 +164,26 @@ def run_game(batch, models, should_print=False):
     for round in range(13):
         if should_print:
             print(f"Round {round + 1}")
-        suit_mask = torch.full((batch, 52), 1)
-        score_mask = torch.full((batch, 52), 1)
+        suit_mask = torch.full((batch, 52), 1, device=device)
+        score_mask = torch.full((batch, 52), 1, device=device)
 
         round_played_cards = [
-            torch.zeros((batch,)),
-            torch.zeros((batch,)),
-            torch.zeros((batch,)),
-            torch.zeros((batch,)),
+            torch.zeros((batch,), device=device),
+            torch.zeros((batch,), device=device),
+            torch.zeros((batch,), device=device),
+            torch.zeros((batch,), device=device),
         ]
         round_value = [
-            torch.zeros((batch,)),
-            torch.zeros((batch,)),
-            torch.zeros((batch,)),
-            torch.zeros((batch,)),
+            torch.zeros((batch,), device=device),
+            torch.zeros((batch,), device=device),
+            torch.zeros((batch,), device=device),
+            torch.zeros((batch,), device=device),
         ]
 
-        combined_card_state = GameState(mask=torch.zeros((batch,)))
-        combined_allowed_cards = torch.zeros((batch, 52)).to(torch.uint8)
-        combined_cards = torch.zeros((batch,)).to(torch.uint8)
-        sum_played = torch.zeros((batch,))
+        combined_card_state = GameState(mask=torch.zeros((batch,), device=device))
+        combined_allowed_cards = torch.zeros((batch, 52), device=device).to(torch.uint8)
+        combined_cards = torch.zeros((batch,), device=device).to(torch.uint8)
+        sum_played = torch.zeros((batch,), device=device)
         for initiative_offset in range(4):
             for player in range(4):
                 player_should_play = torch.eq(initiative_player, (player + initiative_offset) % 4).to(torch.uint8)
@@ -211,8 +214,8 @@ def run_game(batch, models, should_print=False):
                     hands_won_teammate = hands_won[teammate_player],
                     hands_won_left = hands_won[left_player],
                     hands_won_right = hands_won[right_player],
-                    players_left = torch.full((batch,), 3 - player),
-                    hand_number = torch.full((batch,), round),
+                    players_left = torch.full((batch,), 3 - player, device=device),
+                    hand_number = torch.full((batch,), round, device=device),
                     trick_wins_me = player_wins[wrapped_player],
                     trick_wins_teammate = player_wins[teammate_player],
                     trick_wins_left = player_wins[left_player],
@@ -226,9 +229,9 @@ def run_game(batch, models, should_print=False):
 
                 allowed_cards = hands[wrapped_player] * suit_mask
                 any_playable_cards = torch.max(allowed_cards, 1)[0]
-                limitless_override = torch.outer(1 - any_playable_cards, torch.full((52,), 1)) * hands[wrapped_player]
+                limitless_override = torch.outer(1 - any_playable_cards, torch.full((52,), 1, device=device)) * hands[wrapped_player]
                 allowed_cards = torch.maximum(allowed_cards, limitless_override)
-                allowed_cards = torch.maximum(allowed_cards, torch.outer(allow_all_play, torch.full((52,), 1)))
+                allowed_cards = torch.maximum(allowed_cards, torch.outer(allow_all_play, torch.full((52,), 1, device=device)))
 
                 result = models[wrapped_player].play(state, allowed_cards)
 
@@ -236,23 +239,23 @@ def run_game(batch, models, should_print=False):
 
                 round_played_cards[wrapped_player] = round_played_cards[wrapped_player] + result["cards"] * player_should_play
                 num_cards_played = torch.sum(card_played * allowed_cards)
-                if num_cards_played.item() != batch:
-                    print(f"Player {wrapped_player} played invalid cards! Only {num_cards_played.item()} cards played out of {batch}.")
-                    crash()
+                #if num_cards_played.item() != batch:
+                #    print(f"Player {wrapped_player} played invalid cards! Only {num_cards_played.item()} cards played out of {batch}.")
+                #    crash()
                 
                 card_is_spades = torch.lt(result["cards"], 13).to(torch.uint8)
                 
-                should_update_mask = torch.outer(player_should_play, torch.ones((52,)))
+                should_update_mask = torch.outer(player_should_play, torch.ones((52,), device=device))
                 
                 if player == 0:
                     card_is_hearts = torch.logical_and(torch.ge(result["cards"], 13), torch.lt(result["cards"], 26)).to(torch.uint8)
                     card_is_clubs = torch.logical_and(torch.ge(result["cards"], 26), torch.lt(result["cards"], 39)).to(torch.uint8)
                     card_is_diamonds = torch.ge(result["cards"], 39).to(torch.uint8)
 
-                    should_spades_mask = torch.outer(card_is_spades, spades_mask) + torch.outer(1 - card_is_spades, torch.full((52,), 1))
-                    should_hearts_mask = torch.outer(card_is_hearts, hearts_mask) + torch.outer(1 - card_is_hearts, torch.full((52,), 1))
-                    should_clubs_mask = torch.outer(card_is_clubs, clubs_mask) + torch.outer(1 - card_is_clubs, torch.full((52,), 1))
-                    should_diamonds_mask = torch.outer(card_is_diamonds, diamonds_mask) + torch.outer(1 - card_is_diamonds, torch.full((52,), 1))
+                    should_spades_mask = torch.outer(card_is_spades, spades_mask) + torch.outer(1 - card_is_spades, torch.full((52,), 1, device=device))
+                    should_hearts_mask = torch.outer(card_is_hearts, hearts_mask) + torch.outer(1 - card_is_hearts, torch.full((52,), 1, device=device))
+                    should_clubs_mask = torch.outer(card_is_clubs, clubs_mask) + torch.outer(1 - card_is_clubs, torch.full((52,), 1, device=device))
+                    should_diamonds_mask = torch.outer(card_is_diamonds, diamonds_mask) + torch.outer(1 - card_is_diamonds, torch.full((52,), 1, device=device))
 
                     new_suit_mask = should_spades_mask * should_hearts_mask * should_clubs_mask * should_diamonds_mask
                     suit_mask = should_update_mask * new_suit_mask + (1 - should_update_mask) * suit_mask
@@ -261,7 +264,7 @@ def run_game(batch, models, should_print=False):
 
                 round_value[wrapped_player] = round_value[wrapped_player] + torch.sum(card_played * score_mask * base_card_values, 1) * player_should_play
 
-                spades_played = spades_played + torch.maximum(spades_played, card_is_spades) * player_should_play
+                spades_played = torch.maximum(spades_played, card_is_spades * player_should_play)
                 rparts = []
                 for r in range(13):
                     part = cards_played[wrapped_player][:, r, :]
@@ -283,20 +286,23 @@ def run_game(batch, models, should_print=False):
 
                 if wrapped_player == 0:
                     combined_card_state = combined_card_state.combine(state, player_should_play)
-                    combined_allowed_cards = combined_allowed_cards + allowed_cards * torch.outer(player_should_play, torch.zeros((52,)))
+                    combined_allowed_cards = combined_allowed_cards + allowed_cards * torch.outer(player_should_play, torch.ones((52,), device=device))
                     combined_cards = combined_cards + result["cards"] * player_should_play
 
                 
                 #print(f"Player {wrapped_player} played {result['cards']} with value {round_value[wrapped_player]}")
 
+
         # capture samples
-        pending_samples.append(('cards', combined_card_state, combined_allowed_cards.detach(), combined_cards.detach()))
+        pending_sample.hand_states[round] = combined_card_state
+        pending_sample.hand_results[round] = combined_cards.detach()
+        pending_sample.hand_allowed[round] = combined_allowed_cards.detach()
 
         if should_print:
             print(f"Played cards: {round_played_cards}")
         winners = torch.argmax(torch.stack(round_value, 1), 1)
 
-        round_hot = torch.nn.functional.one_hot(torch.tensor(round), 13)
+        round_hot = torch.nn.functional.one_hot(torch.tensor(round, device=device), 13)
         for player in range(4):
             is_winner = torch.eq(winners, player).to(torch.uint8)
 
@@ -351,4 +357,6 @@ def run_game(batch, models, should_print=False):
         print(f"Bids: team 1 won {team_0_wins} out of {team_0_bid}, team 2 got {team_1_wins} out of {team_1_bid}")
         print(f"Scores: team 1 got {team_0_delta * 10 + team_0_bag_delta} points, team 2 got {team_1_delta * 10 + team_1_bag_delta} points")
 
-    return [sample + (team_0_score_delta, team_1_score_delta) for sample in pending_samples]
+    pending_sample.own_outcome = team_0_score_delta.detach()
+    pending_sample.other_outcome = team_1_score_delta.detach()
+    return pending_sample

@@ -108,3 +108,4 @@ ENV/
 .aider*
 torchmax/results/
 torchmax/results_bidder/
+torchmax/results-try*/

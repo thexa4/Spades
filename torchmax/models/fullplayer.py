@@ -1,3 +1,4 @@
+import copy
 import torch
 import random
 from torch import nn
@@ -42,13 +43,14 @@ class FullPlayer:
     BID_INPUT_SIZE=80
     CARD_INPUT_SIZE=2958
 
-    def __init__(self, temperature):
+    def __init__(self, temperature, device=None):
         self.temperature = min(100, max(temperature, 0.01))
-        self.bidnet = BidNet(self.BID_INPUT_SIZE)
-        self.cardnet = CardNet(self.CARD_INPUT_SIZE)
+        self.bidnet = BidNet(self.BID_INPUT_SIZE).to(device)
+        self.cardnet = CardNet(self.CARD_INPUT_SIZE).to(device)
+        self.device = device
 
     def with_temperature(self, temperature):
-        result = FullPlayer(temperature)
+        result = FullPlayer(temperature, device=self.device)
         result.bidnet = self.bidnet
         result.cardnet = self.cardnet
         return result
@@ -86,7 +88,7 @@ class FullPlayer:
             #gamestate.trick_wins_right,
             #gamestate.cards_seen,
         ]
-        input_data = torch.concat([item.float() for item in stack_items], 1)
+        input_data = torch.concat([item.float().to(device=self.device) for item in stack_items], 1)
 
         bid_data = self.bidnet(input_data)
         own_scores = torch.reshape(bid_data[:, 0:26], (-1, 13, 2))
@@ -97,7 +99,7 @@ class FullPlayer:
         
         chosen_bids = torch.multinomial(score_softmax, 1).squeeze()
         if prediction_bid_overrides != None:
-            chosen_bids = prediction_bid_overrides
+            chosen_bids = prediction_bid_overrides.to(device=self.device)
 
         own_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_bids, :] * 20
         other_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_bids, :] * 20
@@ -138,28 +140,25 @@ class FullPlayer:
             torch.nn.functional.one_hot(gamestate.trick_wins_right.long(), 13),
             gamestate.cards_seen
         ]
-        input_data = torch.concat([item.float() for item in stack_items], 1)
+        input_data = torch.concat([item.float().to(device=self.device) for item in stack_items], 1)
         card_data = self.cardnet(input_data)
         own_scores = torch.reshape(card_data[:, 0:104], (-1, 52, 2))
         other_scores = torch.reshape(card_data[:, 104:208], (-1, 52, 2))
 
         score_delta = own_scores[:, :, 0] - other_scores[:, :, 0]
-        softmax_exponents = torch.exp(score_delta.double() / self.temperature) * allowed_cards
+        softmax_exponents = torch.exp(score_delta.double() / self.temperature) * allowed_cards.to(device=self.device)
         softmax_sum = torch.sum(softmax_exponents, 1)
-        score_softmax = softmax_exponents / torch.outer(softmax_sum, torch.ones((52,)))
-        #for i in range(score_delta.size(0)):
-        #    if torch.any(torch.isnan(score_softmax[i, :])):
-        #        print('NaN')
-        #        print(allowed_cards)
-        #        print(score_delta[i, :] / self.temperature)
-        #        print(softmax_exponents[i, :])
-        #        print(softmax_sum[i])
-        #        print(score_softmax[i, :])
-        #        crash()
+        score_softmax = softmax_exponents / torch.outer(softmax_sum, torch.ones((52,), device=self.device))
         
+        if torch.any(torch.isnan(score_softmax)):
+            print(sum(allowed_cards))
+            print(score_delta)
+            print(softmax_exponents)
+            print(softmax_sum)
+            print(score_softmax)
         chosen_cards = torch.multinomial(score_softmax, 1).squeeze()
         if prediction_indexes_overrides != None:
-            chosen_cards = prediction_indexes_overrides
+            chosen_cards = prediction_indexes_overrides.to(device=self.device)
 
         own_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_cards, :] * 20
         other_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_cards, :] * 20
@@ -170,20 +169,38 @@ class FullPlayer:
             "other_score_prediction": other_score_predictions,
         }
     
+    def with_device(self, device):
+        result = FullPlayer(self.temperature, device)
+        result.bidnet = copy.deepcopy(self.bidnet).to(device)
+        result.cardnet = copy.deepcopy(self.cardnet).to(device)
+        return result
+
+    def replicate(self, devices):
+        self.bidnet.share_memory()
+        self.cardnet.share_memory()
+        results = [FullPlayer(self.temperature, device) for device in devices]
+        bidnets = torch.nn.parallel.replicate(self.bidnet, devices)
+        cardnets = torch.nn.parallel.replicate(self.cardnet, devices)
+        for i in range(len(devices)):
+            results[i].bidnet = bidnets[i]
+            results[i].cardnet = cardnets[i]
+        return results
+    
     @staticmethod
-    def load(path, temperature, device='cuda'):
+    def load(path, temperature, device=None):
         state_dict = torch.load(path, weights_only=False, map_location=device)
         bid_weights = state_dict['bid_weights']
         card_weights = state_dict['card_weights']
         
-        result = FullPlayer(temperature)
+        result = FullPlayer(temperature, device=device)
         result.bidnet.load_state_dict(bid_weights)
         result.cardnet.load_state_dict(card_weights)
-        return result
+        return (result, state_dict.get('meta', {}))
     
-    def save(self, path):
+    def save(self, path, meta=None):
         state_dict = {
             'bid_weights': self.bidnet.state_dict(),
-            'card_weights': self.cardnet.state_dict()
+            'card_weights': self.cardnet.state_dict(),
+            'meta': meta,
         }
         torch.save(state_dict, path)
