@@ -11,7 +11,7 @@ import numpy as np
 import sys
 
 def main():
-	b_p = [TorchPlayer('torchmax/results/q2-0005.pt'), TorchPlayer('torchmax/results/q2-0005.pt')]
+	b_p = [TorchPlayer('torchmax/results/double2/0001-q1.pt'), BraindeadPlayer()]
 	t_p = [BraindeadPlayer(), BraindeadPlayer()]
 	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 	manager = GameManager(players)

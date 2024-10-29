@@ -1,5 +1,7 @@
 import torch
 
+from gamestate import GameState
+
 
 class TrainingSample:
     def __init__(self):
@@ -67,6 +69,24 @@ class TrainingSample:
         result.hand_allowed = [torch.concat([self.hand_allowed[i], other.hand_allowed[i]], 0) for i in range(len(self.hand_allowed))]
         result.own_outcome = torch.concat([self.own_outcome, other.own_outcome], 0)
         result.other_outcome = torch.concat([self.other_outcome, other.other_outcome], 0)
+        return result
+    
+    @staticmethod
+    def concat(parts):
+        active_parts = [x for x in parts if x.bid_state != None]
+
+        result = TrainingSample()
+        if len(active_parts) == 0:
+            return result
+        result.bid_state = GameState.concat([x.bid_state for x in active_parts])
+        for i in range(len(active_parts[0].hand_states)):
+            result.hand_states[i] = GameState.concat([x.hand_states[i] for x in active_parts])
+            result.hand_results[i] = torch.concat([x.hand_results[i] for x in active_parts])
+            result.hand_allowed[i] = torch.concat([x.hand_allowed[i] for x in active_parts])
+
+        result.bid_result = torch.concat([x.bid_result for x in active_parts], 0)
+        result.own_outcome = torch.concat([x.own_outcome for x in active_parts], 0)
+        result.other_outcome = torch.concat([x.other_outcome for x in active_parts], 0)
         return result
 
     def with_device(self, device):

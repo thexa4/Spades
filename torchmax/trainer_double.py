@@ -6,23 +6,20 @@ import os.path
 import collections
 import threading
 import statistics
-import pympler.tracker
 
-from models.braindead import BrainDead
-from models.bidder import Bidder
 from models.fullplayer import FullPlayer
-from simulator import run_game
+from simulator import run_double_game
 from models.random_player import RandomPlayer
 from training_sample import TrainingSample
 from multiprocessing.pool import ThreadPool
 
-def train(model, optimizer, samples, devices=[None]):
+def train(model, optimizer, samples, testset=None, devices=[None]):
     device_models = model.replicate(devices)
     device_samples = []
     total_loss = torch.tensor(0, device=model.device)
     
     for i in range(len(devices)):
-        device_samples.append(sum(samples[i::len(devices)], TrainingSample()).with_device(devices[i]))
+        device_samples.append(TrainingSample.concat(samples[i::len(devices)]).with_device(devices[i]))
     
     optimizer.zero_grad()
     
@@ -81,7 +78,31 @@ def train(model, optimizer, samples, devices=[None]):
     round_matrix = [x['rounds'] for x in results]
     rounds = []
     for i in range(13):
-        rounds.append(round(statistics.mean([round[i] for round in round_matrix]), ndigits=1))
+        rounds.append(round(statistics.mean([r[i] for r in round_matrix]), ndigits=1))
+
+    test_bid_loss = -1
+    test_card_losses = [-1 for _ in range (13)]
+    if testset != None:
+        game = testset
+        bid_result = device_models[0].bid(game.bid_state, game.bid_result)
+
+        predictions = torch.concat([bid_result["own_score_prediction"], bid_result["other_score_prediction"]], 1)
+        outcomes = torch.concat([game.own_outcome.float(), game.other_outcome.float()], 1).detach()
+
+        error = torch.nn.functional.mse_loss(predictions, outcomes.to(device=devices[0])) * torch.tensor(predictions.size(0), device=devices[0]).float()
+        test_bid_loss = error.item()
+        test_card_losses = []
+
+        for r in range(13):
+            card_result = device_models[0].play(game.hand_states[r], game.hand_allowed[r], game.hand_results[r])
+
+            predictions = torch.concat([card_result["own_score_prediction"], card_result["other_score_prediction"]], 1)
+            outcomes = torch.concat([game.own_outcome.float(), game.other_outcome.float()], 1).detach()
+
+            error = torch.nn.functional.mse_loss(predictions, outcomes.to(device=devices[0])) * torch.tensor(predictions.size(0), device=devices[0]).float()
+
+            test_card_losses.append((error / torch.tensor(game.own_outcome.size(0)).float()).item())
+        test_bid_loss = test_bid_loss / torch.tensor(game.own_outcome.size(0)).float().item()
 
     total_loss.backward()
     optimizer.step()
@@ -93,9 +114,11 @@ def train(model, optimizer, samples, devices=[None]):
         "bids": bid_loss,
         "cards": card_loss,
         "rounds": rounds,
+        "test_bid": test_bid_loss,
+        "test_round_loss": test_card_losses,
     }
 
-def do_tournament(steering_model, available_models, game_batch_size, num_seatings, model_prob, devices=[None]):
+def do_tournament(steering_model, available_models, game_batch_size, num_seatings, model_prob, devices=[None], store_device=None):
     seatings_left = [num_seatings]
     seat_lock = threading.Lock()
 
@@ -110,7 +133,7 @@ def do_tournament(steering_model, available_models, game_batch_size, num_seating
         return models[0]
 
     def do_seating(args):
-        device, s_left, s_lock = args
+        device, s_left, s_lock, store_device = args
 
         seat_samples = []
         while True:
@@ -121,18 +144,19 @@ def do_tournament(steering_model, available_models, game_batch_size, num_seating
             models = [
                 steering_model.with_device(device),
                 choose_model(available_models, model_prob).with_device(device),
-                choose_model(available_models, model_prob).with_device(device),
-                choose_model(available_models, model_prob).with_device(device),
             ]
 
-            seat_samples.append(run_game(game_batch_size, models, device=device).with_device(devices[0]))
+            sample = run_double_game(game_batch_size, models + models, device=device).with_device(devices[0])
+            if store_device != None:
+                sample = sample.with_device(store_device)
+            seat_samples.append(sample)
             sys.stdout.write('.')
             sys.stdout.flush()
 
     pool = ThreadPool(len(devices))
-    return sum(pool.map(do_seating, [(d, seatings_left, seat_lock) for d in devices]), [])
+    return sum(pool.map(do_seating, [(d, seatings_left, seat_lock, store_device) for d in devices]), [])
 
-def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128, num_seatings=64, steps=100, model_prob=0.2, lr=None, reuse_factor=10, seat_batch=2, folder='results', bid_layout=None, card_layout=None, train_devices=['cuda:0']):
+def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128, num_seatings=64, steps=100, model_prob=0.2, lr=None, reuse_factor=10, seating_offset=0, seat_batch=2, folder='results', bid_layout=None, card_layout=None, train_devices=['cuda:0'], store_device='cpu', model_retention=0):
         
     meta = {
         'mc': len(q1_models) + len(q2_models),
@@ -142,29 +166,57 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         'model_prob': model_prob,
         'lr': lr,
         'reuse': reuse_factor,
+        'seat_offset': seating_offset,
         'sbatch': seat_batch,
         'bid_layers': bid_layout,
         'card_layers': card_layout,
     }
+    
+    print('Generating testset')
+    testset = []
+    testset_models = q1_models[-10:] + q2_models[-10:]
+    for i in range(10):
+        random.shuffle(testset_models)
+        pairs = zip(testset_models[::2], testset_models[1::2])
+        for a,b in pairs:
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            testset.append(run_double_game(4, [a, b, a, b], device=train_devices[0]).with_device(train_devices[0]))
+    testset = sum(testset[1:], testset[0])
+    print('')
 
-    q1_training_model = FullPlayer(0, bid_layout, card_layout, device='cuda')
+
+    q1_training_model = FullPlayer(0, bid_layout, card_layout, device=train_devices[0])
+    q1_optimizer = torch.optim.Adam(q1_training_model.parameters(), lr=lr)
+    if model_retention > 0 and len(q1_models) > 1:
+        q1_training_model = q1_models[-1].mix(q1_training_model, 1 - model_retention)
+        q1_optimizer = torch.optim.Adam(q1_training_model.parameters(), lr=lr)
+        if q1_models[-1].optim_state != None:
+            q1_optimizer.load_state_dict(q1_models[-1].optim_state)
+        else:
+            print("Previous q1 does not have optimizer state")
+
     curstep = 0
     if os.path.isfile(f"{folder}/q1_ckpt.pt"):
-        test_training_model, metadata = FullPlayer.load(f"{folder}/q1_ckpt.pt", 0, device='cuda')
+        test_training_model, metadata = FullPlayer.load(f"{folder}/q1_ckpt.pt", 0, device=train_devices[0])
         if metadata['state'] == meta:
             curstep = metadata['curstep'] + 1
             q1_training_model = test_training_model
+            q1_optimizer = torch.optim.Adam(q1_training_model.parameters(), lr=lr)
+            if q1_training_model.optim_state != None:
+                q1_optimizer.load_state_dict(q1_training_model.optim_state)
+            else:
+                print("Q1 checkpoint does not have optimizer state")
         else:
             print('Checkpoint for q1 not applicable')
     
-    q1_optimizer = torch.optim.Adam(q1_training_model.parameters(), lr=lr)
 
     resevoir = collections.deque()
     
     q1_sample_count = 0
     for s in range(curstep, steps):
-        while len(resevoir) < reuse_factor * num_seatings:
-            tournament_samples = do_tournament(q2_models[-1].with_temperature(temperature), q1_models, game_batch_size, reuse_factor * num_seatings - len(resevoir), model_prob, devices=train_devices)
+        while len(resevoir) < reuse_factor * num_seatings + seating_offset:
+            tournament_samples = do_tournament(q2_models[-1].with_temperature(temperature), q1_models, game_batch_size, reuse_factor * num_seatings + seating_offset - len(resevoir), model_prob, devices=train_devices, store_device=store_device)
             for samp in tournament_samples:
                 resevoir.append(samp)
 
@@ -175,20 +227,26 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         card_losses = []
         bid_losses = []
         round_losses = [list() for _ in range(13)]
+        test_bid_losses = []
+        test_card_losses = [list() for _ in range(13)]
         for samples in todo_list:
-            losses = train(q1_training_model, q1_optimizer, samples, devices=train_devices)
+            losses = train(q1_training_model, q1_optimizer, samples, testset=testset, devices=train_devices)
 
             card_losses.append(losses['cards'])
             bid_losses.append(losses['bids'])
+            test_bid_losses.append(losses['test_bid'])
             for i in range(13):
                 round_losses[i].append(losses['rounds'][i])
+                test_card_losses[i].append(losses['test_round_loss'][i])
 
         q1_sample_count = q1_sample_count + losses["sample_count"]
         print()
+        q1_training_model.optim_state = q1_optimizer.state_dict()
         q1_training_model.save(f"{folder}/q1_ckpt.pt", {'state': meta, 'curstep': s})
 
         print(f"Q1 step {s}, bid {round(statistics.mean(bid_losses), ndigits=1)}, cards: {round(statistics.mean(card_losses), ndigits=1)}, samples: {q1_sample_count}")
         print([round(statistics.mean(round_losses[i]), ndigits=1) for i in range(13)])
+        print(f"Test: bid {round(statistics.mean(test_bid_losses), ndigits=1)}, cards: {[round(statistics.mean(test_card_losses[i]), ndigits=1) for i in range(13)]}")
         for _ in range(num_seatings):
             resevoir.popleft()
         samples = None
@@ -196,23 +254,35 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
     q1_optimizer = None
         
     
-    q2_training_model = FullPlayer(0, bid_layout, card_layout, device='cuda')
+    q2_training_model = FullPlayer(0, bid_layout, card_layout, device=train_devices[0])
+    q2_optimizer = torch.optim.Adam(q2_training_model.parameters())
+    if model_retention > 0 and len(q2_models) > 1:
+        q2_training_model = q2_models[-1].mix(q2_training_model, 1 - model_retention)
+        q2_optimizer = torch.optim.Adam(q2_training_model.parameters())
+        if q2_models[-1].optim_state != None:
+            q2_optimizer.load_state_dict(q1_models[-1].optim_state)
+        else:
+            print("Previous q2 does not have optimizer state")
     curstep = 0
     if os.path.isfile(f"{folder}/q2_ckpt.pt"):
-        test_training_model, metadata = FullPlayer.load(f"{folder}/q2_ckpt.pt", 0, device='cuda')
+        test_training_model, metadata = FullPlayer.load(f"{folder}/q2_ckpt.pt", 0, device=train_devices[0])
         if metadata['state'] == meta:
             curstep = metadata['curstep'] + 1
             q2_training_model = test_training_model
+            q2_optimizer = torch.optim.Adam(q2_training_model.parameters(), lr=lr)
+            if q2_training_model.optim_state != None:
+                q2_optimizer.load_state_dict(q2_training_model.optim_state)
+            else:
+                print("Q2 checkpoint does not have optimizer state")
         else:
             print('Checkpoint for q2 not applicable')
 
-    q2_optimizer = torch.optim.Adam(q2_training_model.parameters())
     
     resevoir = collections.deque()
     q2_sample_count = 0
     for s in range(curstep, steps):
-        while len(resevoir) < reuse_factor * num_seatings:
-            tournament_samples = do_tournament(q1_models[-1].with_temperature(temperature), q1_models, game_batch_size, reuse_factor * num_seatings - len(resevoir), model_prob, devices=train_devices)
+        while len(resevoir) < reuse_factor * num_seatings + seating_offset:
+            tournament_samples = do_tournament(q1_models[-1].with_temperature(temperature), q1_models, game_batch_size, reuse_factor * num_seatings + seating_offset - len(resevoir), model_prob, devices=train_devices, store_device='cpu')
             for samp in tournament_samples:
                 resevoir.append(samp)
 
@@ -223,20 +293,26 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         card_losses = []
         bid_losses = []
         round_losses = [list() for _ in range(13)]
+        test_bid_losses = []
+        test_card_losses = [list() for _ in range(13)]
         for samples in todo_list:            
-            losses = train(q2_training_model, q2_optimizer, samples, devices=train_devices)
+            losses = train(q2_training_model, q2_optimizer, samples, testset=testset, devices=train_devices)
 
             card_losses.append(losses['cards'])
             bid_losses.append(losses['bids'])
+            test_bid_losses.append(losses['test_bid'])
             for i in range(13):
                 round_losses[i].append(losses['rounds'][i])
+                test_card_losses[i].append(losses['test_round_loss'][i])
 
         q2_sample_count = q2_sample_count + losses["sample_count"]
         print()
+        q2_training_model.optim_state = q2_optimizer.state_dict()
         q2_training_model.save(f"{folder}/q2_ckpt.pt", {'state': meta, 'curstep': s})
 
         print(f"Q2 step {s}, bid {round(statistics.mean(bid_losses), ndigits=1)}, cards: {round(statistics.mean(card_losses), ndigits=1)}, samples: {q2_sample_count}")
         print([round(statistics.mean(round_losses[i]), ndigits=1) for i in range(13)])
+        print(f"Test: bid {round(statistics.mean(test_bid_losses), ndigits=1)}, cards: {[round(statistics.mean(test_card_losses[i]), ndigits=1) for i in range(13)]}")
         for _ in range(num_seatings):
             resevoir.popleft()
         samples = None
@@ -254,6 +330,7 @@ def start_training(folder):
         "steps": 20,
         "model_prob": 0.3,
         "reuse_factor": 10,
+        "seating_offset": 0,
         "seat_batch": 2,
         "temp_schedule": [
             [
@@ -279,7 +356,9 @@ def start_training(folder):
             512,
             512,
             512
-        ]
+        ],
+        "store_device": "cpu",
+        "model_retention": 0,
     }
     serialized = json.dumps(config, indent=4)
     with open(f"{folder}/state.json", "w") as f:
@@ -292,17 +371,19 @@ def continue_training(folder='results'):
         config = json.load(f)
 
     available_models_q1 = [
-        RandomPlayer(device='cuda:0')
-        #FullPlayer(1000, config["bidnet"], config["cardnet"], device='cuda:0'),
+        RandomPlayer(device=config["train_devices"][0])
     ]
     available_models_q2 = [
-        RandomPlayer(device='cuda:0')
-        #FullPlayer(1000, config["bidnet"], config["cardnet"], device='cuda:0')
+        RandomPlayer(device=config["train_devices"][0])
     ]
 
     for i in range(config["generation"]):
-        available_models_q1.append(FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q1.pt", 0, device='cuda:0')[0])
-        available_models_q2.append(FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q2.pt", 0, device='cuda:0')[0])
+        q1_model = FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q1.pt", 0, device=config["train_devices"][0])[0]
+        available_models_q1.append(q1_model)
+
+        q2_model = FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q2.pt", 0, device=config["train_devices"][0])[0]
+        available_models_q2.append(q2_model)
+
 
     while True:
         with open(f"{folder}/state.json") as f:
@@ -335,11 +416,14 @@ def continue_training(folder='results'):
                         lr=config["lr"],
                         model_prob=config["model_prob"],
                         reuse_factor=config["reuse_factor"],
+                        seating_offset=config.get('seating_offset', 0),
                         seat_batch=config["seat_batch"],
                         folder=folder,
                         bid_layout=config["bidnet"],
                         card_layout=config["cardnet"],
                         train_devices=config["train_devices"],
+                        store_device=config["store_device"],
+                        model_retention=config["model_retention"]
                        )
         new_q1 = available_models_q1[-1]
         new_q2 = available_models_q2[-1]

@@ -17,6 +17,7 @@ import random
 import itertools
 import math
 import concurrent.futures
+import sqlite3
 
 #https://github.com/sublee/trueskill/issues/1#issuecomment-149762508
 def win_probability(team1, team2):
@@ -62,6 +63,7 @@ def play_game(args):
 		rank[0] = 1
 	if score[1] < score[0]:
 		rank[1] = 1
+	#rank = [score[0] + 500, score[1] + 500]
 
 	t1_rank, t2_rank = trueskill.rate([estimators_t1, estimators_t2], ranks=rank)
 	if strategy == 'single':
@@ -77,89 +79,101 @@ def play_game(args):
 
 def main():
 
-	strategy = 'single'
-	if len(sys.argv) >= 2:
-		if sys.argv[1] == 'single':
-			strategy = 'single'
-		if sys.argv[1] == 'double':
-			strategy = 'double'
-	print(f'Running in {strategy} mode')
-	
-	pool = [
-		('Braindead', BraindeadPlayer),
-		('Random', RandomPlayer),
-	]
-	for path in os.listdir('torchmax/results-try1'):
-		if path.endswith('.pt'):
-			fullpath = 'torchmax/results-try1/' + path
-			pool.append(('try1-' + path[:-3], functools.partial(TorchPlayer, fullpath)))
-	for path in os.listdir('torchmax/results'):
-		if path.endswith('.pt'):
-			fullpath = 'torchmax/results/' + path
-			pool.append(('try2-' + path[:-3], functools.partial(TorchPlayer, fullpath)))
+	db = sqlite3.connect("elo.db")
+	db_cursor = db.cursor()
+	db_cursor.execute("BEGIN TRANSACTION;")
+	db_cursor.execute("CREATE TABLE IF NOT EXISTS scores (name TEXT, strategy TEXT, mu REAL, sigma REAL, UNIQUE(name, strategy));")
+	db_cursor.execute("COMMIT TRANSACTION;")
 
-	if strategy == 'double':
-		if len(pool) % 2 == 1:
-			pool.append(('Random', RandomPlayer))
-	if strategy == 'single':
-		for _ in range(4 - ((len(pool) - 1) % 4)):
-			pool.append(('Random', RandomPlayer))
+	with concurrent.futures.ProcessPoolExecutor(max_workers=min(61, os.cpu_count() // 4)) as executor:
+		strategy = 'single'
+		if len(sys.argv) >= 2:
+			if sys.argv[1] == 'single':
+				strategy = 'single'
+			if sys.argv[1] == 'double':
+				strategy = 'double'
+			if sys.argv[1] == 'show':
+				strategy = 'single'
+				if len(sys.argv) >= 3:
+					strategy = sys.argv[2]
+				scores = db_cursor.execute("SELECT name, mu, sigma FROM scores WHERE strategy = ? ORDER BY (mu - 3 * sigma) DESC", [strategy]).fetchall()
+				filter = ''
+				if len(sys.argv) >= 4:
+					filter = sys.argv[3]
+				for name, mu, sigma in scores:
+					if filter in name:
+						print(f"{name}\t{round(mu - 3 * sigma, 2)}")
 
-	estimators = [trueskill.Rating() for p in pool]
-
-	with concurrent.futures.ProcessPoolExecutor(max_workers=min(61, os.cpu_count() * 2)) as executor:
-
+				exit(0)
+		print(f'Running in {strategy} mode')
+		
 		count = 0
-		for i in range(1000):
+		while True:
+			pool = [
+				('Braindead', BraindeadPlayer),
+				('Random', RandomPlayer),
+			]
+				
+			for experiment in os.listdir('torchmax/results'):
+				if os.path.isdir(f"torchmax/results/{experiment}"):
+					for path in os.listdir(f"torchmax/results/{experiment}"):
+						if 'q1_ckpt.pt' in path or 'q2_ckpt.pt' in path:
+							continue
+						if path.endswith('.pt'):
+							fullpath = f"torchmax/results/{experiment}/{path}"
+							pool.append((experiment + '-' + path[:-3], functools.partial(TorchPlayer, fullpath)))
+
+			if strategy == 'double':
+				if len(pool) % 2 == 1:
+					pool.append(('Random', RandomPlayer))
+			if strategy == 'single':
+				for _ in range(4 - ((len(pool) - 1) % 4)):
+					pool.append(('Random', RandomPlayer))
+
+			estimators = [trueskill.Rating() for p in pool]
+			for pid in range(len(pool)):
+				db_lookup = db_cursor.execute("SELECT mu, sigma FROM scores WHERE name = ? AND strategy = ?;", [pool[pid][0], strategy]).fetchone()
+				if db_lookup != None:
+					estimators[pid] = trueskill.Rating(db_lookup[0], db_lookup[1])
+
+
 			print("Round " + str(count))
 			leaderboard = list(range(len(pool)))
-			leaderboard.sort(key=lambda i: estimators[i].mu, reverse=True)
+			leaderboard.sort(key=lambda i: estimators[i].mu - 3 * estimators[i].sigma + random.random() * 5, reverse=True)
 			for i in leaderboard:
 				print(pool[i][0].ljust(25) + str(estimators[i]))
 			print()
 
-			if (count % 6) == 0:
-				pairs = list(zip(leaderboard[::2], leaderboard[1::2]))
-			elif (count % 6) == 3:
-				pairs = [(leaderboard[0], leaderboard[-1])] + list(zip(leaderboard[1::2], leaderboard[2:-1:2]))
+			if strategy == 'double':
+				if (count % 10) < 9:
+					pairs = list(zip(leaderboard[::2], leaderboard[1::2]))
+				else:
+					shuffled_leaderboard = leaderboard.copy()
+					random.shuffle(shuffled_leaderboard)
+					pairs = list(zip(shuffled_leaderboard[::2], shuffled_leaderboard[1::2]))
+			elif strategy == 'single':
+				if (count % 10) < 9:
+					pairs = list(zip(leaderboard[::4], leaderboard[1::4], leaderboard[2::4], leaderboard[3::4]))
+				else:
+					shuffled_leaderboard = leaderboard.copy()
+					random.shuffle(shuffled_leaderboard)
+					pairs = list(zip(shuffled_leaderboard[::4], shuffled_leaderboard[1::4], shuffled_leaderboard[2::4], shuffled_leaderboard[3::4]))
 			else:
-				shuffled_leaderboard = leaderboard.copy()
-				random.shuffle(shuffled_leaderboard)
-				pairs = list(zip(shuffled_leaderboard[::2], shuffled_leaderboard[1::2]))
+				crash()
 			
 			count = count + 1
 
-			if strategy == 'single':
-				crash()
-
+			queries = []
 			for updates in executor.map(play_game, [(pool, estimators, pair) for pair in pairs]):
 				for pid, newestimator in updates:
 					estimators[pid] = newestimator
-			
-			#input('Press enter to continue: ')
+					queries.append([pool[pid][0], strategy, newestimator.mu, newestimator.sigma, newestimator.mu, newestimator.sigma])
 
-	quit()
-	model = max2.model.load(2,5)
-	t_p = [InferencePlayer(model), InferencePlayer(model)]
-	#b_p = [BraindeadPlayer() for i in range(2)]
-	model_prev = max2.model.load(2,4)
-	b_p = [InferencePlayer(model_prev), InferencePlayer(model_prev)]
-	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
-	manager = GameManager(players)
-	rounds = 10
+			db_cursor.execute("BEGIN TRANSACTION;")
+			for update in queries:
+				db_cursor.execute("INSERT INTO scores(name, strategy, mu, sigma) VALUES(?, ?, ?, ?) ON CONFLICT(name, strategy) DO UPDATE SET mu = ?, sigma = ?;", update)
+			db_cursor.execute("COMMIT TRANSACTION;")
 
-	b_wins = 0
-	t_wins = 0
-	for i in range(rounds):
-		score = manager.play_game()
-		if score[0] > score[1]:
-			b_wins += 1
-		if score[1] > score[0]:
-			t_wins += 1
-		print(score)
-	print(str(b_wins) + " - " + str(t_wins))
-
-	print(len(t_p[1].samples))
 
 if __name__ == '__main__':
 	freeze_support()

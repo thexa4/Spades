@@ -227,6 +227,16 @@ class GameState:
                     combined[key] = combined[key] * torch.reshape(torch.outer(self.mask, shaped_mask), (-1,) + non_batch_shape) + other[key] * torch.reshape(torch.outer(mask, shaped_mask), (-1,) + non_batch_shape)
             
         return GameState(**combined, mask=torch.maximum(self.mask, mask))
+    
+    @staticmethod
+    def concat(parts):
+        active_parts = [x for x in parts if x.my_hand != None]
+        if len(active_parts) == 0:
+            return parts[0]
+        active_fields = [x.fields() for x in active_parts]
+        
+        fields = {k: torch.concat([x[k] for x in active_fields], 0) for k in parts[0].fields().keys()}
+        return GameState(**fields, mask=torch.concat([x.mask for x in active_parts], 0))
 
     def with_device(self, device):
         fields = {k: v.to(device=device) for k,v in self.fields().items() if v != None}
