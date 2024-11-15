@@ -10,6 +10,7 @@ import statistics
 from models.fullplayer import FullPlayer
 from simulator import run_double_game
 from models.random_player import RandomPlayer
+from models.fullplayer2 import FullPlayer2
 from training_sample import TrainingSample
 from multiprocessing.pool import ThreadPool
 
@@ -61,7 +62,7 @@ def train(model, optimizer, samples, testset=None, devices=[None]):
         card_total_loss = torch.sum(torch.stack(card_losses)) / torch.tensor(card_sample_count).float()
 
         return {
-            "total": (bid_total_loss + card_total_loss).to(model.device),
+            "total": (13 * bid_total_loss + card_total_loss).to(model.device),
             "bids": bid_total_loss.item(),
             "cards": card_total_loss.item(),
             "rounds": [r.item() / bid_counts for r in round_losses],
@@ -156,7 +157,7 @@ def do_tournament(steering_model, available_models, game_batch_size, num_seating
     pool = ThreadPool(len(devices))
     return sum(pool.map(do_seating, [(d, seatings_left, seat_lock, store_device) for d in devices]), [])
 
-def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128, num_seatings=64, steps=100, model_prob=0.2, lr=None, reuse_factor=10, seating_offset=0, seat_batch=2, folder='results', bid_layout=None, card_layout=None, train_devices=['cuda:0'], store_device='cpu', model_retention=0):
+def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128, num_seatings=64, steps=100, model_prob=0.2, lr=None, reuse_factor=10, seating_offset=0, seat_batch=2, folder='results', hand_layout=None, bid_layout=None, card_layout=None, embedding_path=None, train_devices=['cuda:0'], store_device='cpu', model_retention=0, model_version="fullplayer/v1"):
         
     meta = {
         'mc': len(q1_models) + len(q2_models),
@@ -170,6 +171,8 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         'sbatch': seat_batch,
         'bid_layers': bid_layout,
         'card_layers': card_layout,
+        'hand_layers': hand_layout,
+        'model_version': model_version,
     }
     
     print('Generating testset')
@@ -186,7 +189,13 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
     print('')
 
 
-    q1_training_model = FullPlayer(0, bid_layout, card_layout, device=train_devices[0])
+    if model_version == "fullplayer/v1":
+        q1_training_model = FullPlayer(0, bid_layout, card_layout, device=train_devices[0])
+    if model_version == "fullplayer/v2":
+        if hand_layout == None:
+            q1_training_model = FullPlayer2(0, None, bid_layout, card_layout, embedding_path=embedding_path, device=train_devices[0])
+        else:
+            q1_training_model = FullPlayer2(0, hand_layout, bid_layout, card_layout, device=train_devices[0])
     q1_optimizer = torch.optim.Adam(q1_training_model.parameters(), lr=lr)
     if model_retention > 0 and len(q1_models) > 1:
         q1_training_model = q1_models[-1].mix(q1_training_model, 1 - model_retention)
@@ -197,8 +206,11 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
             print("Previous q1 does not have optimizer state")
 
     curstep = 0
-    if os.path.isfile(f"{folder}/q1_ckpt.pt"):
-        test_training_model, metadata = FullPlayer.load(f"{folder}/q1_ckpt.pt", 0, device=train_devices[0])
+    if os.path.isfile(f"{folder}/q1_ckpt.pt") or os.path.isfile(f"{folder}/q1_ckpt.pt2"):
+        if model_version == "fullplayer/v1":
+            test_training_model, metadata = FullPlayer.load(f"{folder}/q1_ckpt.pt", 0, device=train_devices[0])
+        if model_version == "fullplayer/v2":
+            test_training_model, metadata = FullPlayer2.load(f"{folder}/q1_ckpt.pt2", 0, device=train_devices[0])
         if metadata['state'] == meta:
             curstep = metadata['curstep'] + 1
             q1_training_model = test_training_model
@@ -242,7 +254,10 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         q1_sample_count = q1_sample_count + losses["sample_count"]
         print()
         q1_training_model.optim_state = q1_optimizer.state_dict()
-        q1_training_model.save(f"{folder}/q1_ckpt.pt", {'state': meta, 'curstep': s})
+        if model_version == "fullplayer/v1":
+            q1_training_model.save(f"{folder}/q1_ckpt.pt", {'state': meta, 'curstep': s})
+        if model_version == "fullplayer/v2":
+            q1_training_model.save(f"{folder}/q1_ckpt.pt2", {'state': meta, 'curstep': s})
 
         print(f"Q1 step {s}, bid {round(statistics.mean(bid_losses), ndigits=1)}, cards: {round(statistics.mean(card_losses), ndigits=1)}, samples: {q1_sample_count}")
         print([round(statistics.mean(round_losses[i]), ndigits=1) for i in range(13)])
@@ -254,7 +269,13 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
     q1_optimizer = None
         
     
-    q2_training_model = FullPlayer(0, bid_layout, card_layout, device=train_devices[0])
+    if model_version == "fullplayer/v1":
+        q2_training_model = FullPlayer(0, bid_layout, card_layout, device=train_devices[0])
+    if model_version == "fullplayer/v2":
+        if hand_layout == None:
+            q2_training_model = FullPlayer2(0, None, bid_layout, card_layout, embedding_path=embedding_path, device=train_devices[0])
+        else:
+            q2_training_model = FullPlayer2(0, hand_layout, bid_layout, card_layout, device=train_devices[0])
     q2_optimizer = torch.optim.Adam(q2_training_model.parameters())
     if model_retention > 0 and len(q2_models) > 1:
         q2_training_model = q2_models[-1].mix(q2_training_model, 1 - model_retention)
@@ -264,8 +285,11 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         else:
             print("Previous q2 does not have optimizer state")
     curstep = 0
-    if os.path.isfile(f"{folder}/q2_ckpt.pt"):
-        test_training_model, metadata = FullPlayer.load(f"{folder}/q2_ckpt.pt", 0, device=train_devices[0])
+    if os.path.isfile(f"{folder}/q2_ckpt.pt") or os.path.isfile(f"{folder}/q2_ckpt.pt2"):
+        if model_version == "fullplayer/v1":
+            test_training_model, metadata = FullPlayer.load(f"{folder}/q2_ckpt.pt", 0, device=train_devices[0])
+        if model_version == "fullplayer/v2":
+            test_training_model, metadata = FullPlayer2.load(f"{folder}/q2_ckpt.pt2", 0, device=train_devices[0])
         if metadata['state'] == meta:
             curstep = metadata['curstep'] + 1
             q2_training_model = test_training_model
@@ -308,7 +332,10 @@ def do_q_generation(q1_models, q2_models, temperature=1000, game_batch_size=128,
         q2_sample_count = q2_sample_count + losses["sample_count"]
         print()
         q2_training_model.optim_state = q2_optimizer.state_dict()
-        q2_training_model.save(f"{folder}/q2_ckpt.pt", {'state': meta, 'curstep': s})
+        if model_version == "fullplayer/v1":
+            q2_training_model.save(f"{folder}/q2_ckpt.pt", {'state': meta, 'curstep': s})
+        if model_version == "fullplayer/v2":
+            q2_training_model.save(f"{folder}/q2_ckpt.pt2", {'state': meta, 'curstep': s})
 
         print(f"Q2 step {s}, bid {round(statistics.mean(bid_losses), ndigits=1)}, cards: {round(statistics.mean(card_losses), ndigits=1)}, samples: {q2_sample_count}")
         print([round(statistics.mean(round_losses[i]), ndigits=1) for i in range(13)])
@@ -359,6 +386,7 @@ def start_training(folder):
         ],
         "store_device": "cpu",
         "model_retention": 0,
+        "model_version": "fullplayer/v2",
     }
     serialized = json.dumps(config, indent=4)
     with open(f"{folder}/state.json", "w") as f:
@@ -377,12 +405,22 @@ def continue_training(folder='results'):
         RandomPlayer(device=config["train_devices"][0])
     ]
 
-    for i in range(config["generation"]):
-        q1_model = FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q1.pt", 0, device=config["train_devices"][0])[0]
-        available_models_q1.append(q1_model)
+    model_version = config.get("model_version", "fullplayer/v1")
+    if model_version == "fullplayer/v1":
+        for i in range(config["generation"]):
+            q1_model = FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q1.pt", 0, device=config["train_devices"][0])[0]
+            available_models_q1.append(q1_model)
 
-        q2_model = FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q2.pt", 0, device=config["train_devices"][0])[0]
-        available_models_q2.append(q2_model)
+            q2_model = FullPlayer.load(f"{folder}/{str(i).zfill(4)}-q2.pt", 0, device=config["train_devices"][0])[0]
+            available_models_q2.append(q2_model)
+    if model_version == "fullplayer/v2":
+        for i in range(config["generation"]):
+            q1_model = FullPlayer2.load(f"{folder}/{str(i).zfill(4)}-q1.pt2", 0, device=config["train_devices"][0])[0]
+            available_models_q1.append(q1_model)
+
+            q2_model = FullPlayer2.load(f"{folder}/{str(i).zfill(4)}-q2.pt2", 0, device=config["train_devices"][0])[0]
+            available_models_q2.append(q2_model)
+        
 
 
     while True:
@@ -397,7 +435,7 @@ def continue_training(folder='results'):
         if current_generation <= temp_steps[0][0]:
             temp = temp_steps[0][1]
         elif current_generation >= temp_steps[-1][0]:
-            temp = temp_steps[-1][0]
+            temp = temp_steps[-1][1]
         else:
             for i in range(1, len(temp_steps)):
                 if temp_steps[i][0] >= current_generation:
@@ -419,17 +457,24 @@ def continue_training(folder='results'):
                         seating_offset=config.get('seating_offset', 0),
                         seat_batch=config["seat_batch"],
                         folder=folder,
+                        hand_layout=config.get("handnet", None),
                         bid_layout=config["bidnet"],
                         card_layout=config["cardnet"],
+                        embedding_path=config["hand_embedding"],
                         train_devices=config["train_devices"],
                         store_device=config["store_device"],
-                        model_retention=config["model_retention"]
+                        model_retention=config["model_retention"],
+                        model_version=model_version,
                        )
         new_q1 = available_models_q1[-1]
         new_q2 = available_models_q2[-1]
 
-        new_q1.save(f"{folder}/{str(current_generation).zfill(4)}-q1.pt")
-        new_q2.save(f"{folder}/{str(current_generation).zfill(4)}-q2.pt")
+        if model_version == "fullplayer/v1":
+            new_q1.save(f"{folder}/{str(current_generation).zfill(4)}-q1.pt")
+            new_q2.save(f"{folder}/{str(current_generation).zfill(4)}-q2.pt")
+        if model_version == "fullplayer/v2":
+            new_q1.save(f"{folder}/{str(current_generation).zfill(4)}-q1.pt2")
+            new_q2.save(f"{folder}/{str(current_generation).zfill(4)}-q2.pt2")
         
         with open(f"{folder}/state.json") as f:
             config = json.load(f)

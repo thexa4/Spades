@@ -4,13 +4,20 @@ import torch
 from i_player import IPlayer
 from torchmax.gamestate import GameState
 from torchmax.models.fullplayer import FullPlayer
+from torchmax.models.fullplayer2 import FullPlayer2
 from card import Card
 
 class TorchPlayer(IPlayer):
 	""""Real AI"""
 
 	def __init__(self, path):
-		self.model = FullPlayer.load(path, 0, device='cpu')[0]
+		if path.endswith('.pt'):
+			self.model = FullPlayer.load(path, 0, device='cpu')[0]
+		elif path.endswith('.pt2'):
+			self.model = FullPlayer2.load(path, 0, device='cpu')[0]
+		else:
+			print("Unknown model type")
+			crash()
 		self.team0_score = 0
 		self.team1_score = 0
 

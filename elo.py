@@ -38,13 +38,18 @@ def play_game(args):
 
 	t1_desc = pool[pids[0]][0] + ", " + pool[pids[2]][0]
 	result = t1_desc + " vs " + pool[pids[1]][0] + ", " + pool[pids[3]][0]
-	players = [pool[i][1]() for i in pids]
 	if strategy == 'single':
 		estimators_t1 = [estimators[pids[0]], estimators[pids[2]]]
 		estimators_t2 = [estimators[pids[1]], estimators[pids[3]]]
 	else:
 		estimators_t1 = [estimators[pids[0]]]
 		estimators_t2 = [estimators[pids[1]]]
+	
+	max_sigma = max([e.sigma for e in estimators_t1 + estimators_t2])
+	if random.random() > (max_sigma * max_sigma) / 25:
+		return list()
+
+	players = [pool[i][1]() for i in pids]
 
 	winpercent = win_probability(estimators_t1, estimators_t2)
 	t1_winpercent = '{:.1%}'.format(winpercent)
@@ -119,7 +124,7 @@ def main():
 					for path in os.listdir(f"torchmax/results/{experiment}"):
 						if 'q1_ckpt.pt' in path or 'q2_ckpt.pt' in path:
 							continue
-						if path.endswith('.pt'):
+						if path.endswith('.pt') or path.endswith('.pt2'):
 							fullpath = f"torchmax/results/{experiment}/{path}"
 							pool.append((experiment + '-' + path[:-3], functools.partial(TorchPlayer, fullpath)))
 
