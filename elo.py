@@ -90,28 +90,28 @@ def main():
 	db_cursor.execute("CREATE TABLE IF NOT EXISTS scores (name TEXT, strategy TEXT, mu REAL, sigma REAL, UNIQUE(name, strategy));")
 	db_cursor.execute("COMMIT TRANSACTION;")
 
-	with concurrent.futures.ProcessPoolExecutor(max_workers=min(61, os.cpu_count() // 4)) as executor:
-		strategy = 'single'
-		if len(sys.argv) >= 2:
-			if sys.argv[1] == 'single':
-				strategy = 'single'
-			if sys.argv[1] == 'double':
-				strategy = 'double'
-			if sys.argv[1] == 'show':
-				strategy = 'single'
-				if len(sys.argv) >= 3:
-					strategy = sys.argv[2]
-				scores = db_cursor.execute("SELECT name, mu, sigma FROM scores WHERE strategy = ? ORDER BY (mu - 3 * sigma) DESC", [strategy]).fetchall()
-				filter = ''
-				if len(sys.argv) >= 4:
-					filter = sys.argv[3]
-				for name, mu, sigma in scores:
-					if filter in name:
-						print(f"{name}\t{round(mu - 3 * sigma, 2)}")
+	strategy = 'single'
+	if len(sys.argv) >= 2:
+		if sys.argv[1] == 'single':
+			strategy = 'single'
+		if sys.argv[1] == 'double':
+			strategy = 'double'
+		if sys.argv[1] == 'show':
+			strategy = 'single'
+			if len(sys.argv) >= 3:
+				strategy = sys.argv[2]
+			scores = db_cursor.execute("SELECT name, mu, sigma FROM scores WHERE strategy = ? ORDER BY (mu - 3 * sigma) DESC", [strategy]).fetchall()
+			filter = ''
+			if len(sys.argv) >= 4:
+				filter = sys.argv[3]
+			for name, mu, sigma in scores:
+				if filter in name:
+					print(f"{name}\t{round(mu - 3 * sigma, 2)}\t{round(mu, 2)}")
+			exit(0)
 
-				exit(0)
-		print(f'Running in {strategy} mode')
+	print(f'Running in {strategy} mode')
 		
+	with concurrent.futures.ProcessPoolExecutor(max_workers=min(61, os.cpu_count() // 4)) as executor:
 		count = 0
 		while True:
 			pool = [
@@ -124,7 +124,7 @@ def main():
 					for path in os.listdir(f"torchmax/results/{experiment}"):
 						if 'q1_ckpt.pt' in path or 'q2_ckpt.pt' in path:
 							continue
-						if path.endswith('.pt') or path.endswith('.pt2'):
+						if path.endswith('.pt') or path.endswith('.pt2') or path.endswith('.pt3'):
 							fullpath = f"torchmax/results/{experiment}/{path}"
 							pool.append((experiment + '-' + path[:-3], functools.partial(TorchPlayer, fullpath)))
 

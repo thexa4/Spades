@@ -5,6 +5,7 @@ from i_player import IPlayer
 from torchmax.gamestate import GameState
 from torchmax.models.fullplayer import FullPlayer
 from torchmax.models.fullplayer2 import FullPlayer2
+from torchmax.models.fullplayer3 import FullPlayer3
 from card import Card
 
 class TorchPlayer(IPlayer):
@@ -15,6 +16,9 @@ class TorchPlayer(IPlayer):
 			self.model = FullPlayer.load(path, 0, device='cpu')[0]
 		elif path.endswith('.pt2'):
 			self.model = FullPlayer2.load(path, 0, device='cpu')[0]
+		elif path.endswith('.pt3'):
+			self.model = FullPlayer3.load(path, 0, device='cpu')[0]
+			self.model.eval()
 		else:
 			print("Unknown model type")
 			crash()

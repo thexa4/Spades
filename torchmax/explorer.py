@@ -1,14 +1,19 @@
 from models.bidder import Bidder
 from models.braindead import BrainDead
-from models.fullplayer import FullPlayer
+from models.fullplayer3 import FullPlayer3
 
 from simulator import run_game
 
+path = 'results/embedding5/q1_ckpt.pt3'
+target = FullPlayer3.load(path, 0, 'cpu')[0]
+target.debug = True
+target.eval()
+double = FullPlayer3.load(path, 0, 'cpu')[0]
+
 models = [
-    #Bidder.load('results/q1-0000.pt', 0),
-    FullPlayer(0),
+    target,
     BrainDead(),
-    BrainDead(),
+    double,
     BrainDead(),
 ]
 

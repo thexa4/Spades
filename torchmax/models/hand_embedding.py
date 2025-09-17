@@ -15,8 +15,10 @@ class HandEmbeddingNet(torch.nn.Module):
             current_size = layer_size
             layers.append(nn.ReLU())
 
+        layers.append(nn.BatchNorm1d(current_size))
         layers.append(nn.Linear(current_size, output_size))
-        layers.append(nn.Tanh());
+        layers.append(nn.ReLU())
+        layers.append(nn.BatchNorm1d(current_size))
         self.linear_relu_stack = nn.Sequential(*layers)
     
     def forward(self, x):

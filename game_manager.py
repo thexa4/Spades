@@ -19,6 +19,7 @@ class GameManager:
 		self.hands = {}
 		self.dealer = 0
 		self.bids = Bids()
+		self.should_print = False
 
 	def deal_deck(self):
 		"""
@@ -127,12 +128,18 @@ class GameManager:
 		self.deal_deck()
 		starting_player = self.dealer
 		self.get_bids()
+
+		if self.should_print:
+			print(self.bids)
+		
 		trick_count = {0: 0, 1: 0, 2: 0, 3: 0}
 		if self.bids.get_blinder_id() is not None:
 			self.handle_card_exchange()
 		# Play the round
 		for i in range(13):
 			current_trick = self.get_trick(starting_player, spades_broken)
+			if self.should_print:
+				print(f"Round {i}: {current_trick}")
 			if current_trick.won_by_spade:
 				spades_broken = True
 			starting_player = current_trick.get_winner()
@@ -146,6 +153,8 @@ class GameManager:
 		# Inform all players about the new score
 		for i, player in enumerate(self.players):
 			player.announce_score(self.score.make_copy(i))
+		if self.should_print:
+			print(f"Intermediate score: {self.score}")
 
 	def award_team_score(self, trick_count, team_id):
 		""""Given the bids and a resulting trick count, decide the score for a team."""

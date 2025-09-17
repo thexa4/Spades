@@ -11,12 +11,20 @@ import numpy as np
 import sys
 
 def main():
-	b_p = [TorchPlayer('torchmax/results/double2/0001-q1.pt'), BraindeadPlayer()]
-	t_p = [BraindeadPlayer(), BraindeadPlayer()]
+	p1 = TorchPlayer('torchmax/results/embedding3/0002-q2.pt3')
+	p2 = TorchPlayer('torchmax/results/embedding3/0002-q2.pt3')
+
+	p1.model.caution = 0.3
+	p2.model.caution = 0.3
+
+	b_p = [p1, p2]
+	t_p = [TorchPlayer('torchmax/results/try4/0038-q2.pt'), TorchPlayer('torchmax/results/try4/0038-q2.pt')]
 	players = [b_p[0], t_p[0], b_p[1], t_p[1]]
 	manager = GameManager(players)
+	manager.should_print = True
 	rounds = 10
 
+	print("Team 0: torchmax, Team1: Random")
 	b_wins = 0
 	t_wins = 0
 	for i in range(rounds):
