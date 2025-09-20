@@ -39,7 +39,10 @@ class HandEmbeddingNet(torch.nn.Module):
 
     @staticmethod
     def load(path, device=None):
-        state_dict = torch.load(path, weights_only=False, map_location=device)
+        if device == None:
+            state_dict = torch.load(path, weights_only=False, map_location=torch.device('cpu'))
+        else:
+            state_dict = torch.load(path, weights_only=False, map_location=device)
         return HandEmbeddingNet.loadState(state_dict, device)
 
     @staticmethod
