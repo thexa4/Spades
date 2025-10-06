@@ -8,17 +8,17 @@ import pytorch_metric_learning.losses
 import pytorch_metric_learning.regularizers
 
 margin = 0.5
-output_size = 128
-layers = [128, 128, 128]
+output_size = 160
+layers = [160, 160, 160]
 batch = 1024 * 1
 summation_steps = 1
-device = 'cuda:1'
+device = 'cpu'
 epochs = 200
 
 embedding = PlayedEmbeddingNet(output_size, layers).to(device)
 
 optimizer = torch.optim.Adam(embedding.parameters(), lr=0.005)
-lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, steps_per_epoch=1, epochs=epochs)
+lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.002, steps_per_epoch=1, epochs=epochs)
 curloss = 10
 
 lossfunc = pytorch_metric_learning.losses.SelfSupervisedLoss(
@@ -60,6 +60,7 @@ for i in range(epochs):
     
     curloss = total_loss.item()
     print(f"lr {lr_scheduler.get_last_lr()}: {curloss}")
+    torch.nn.utils.clip_grad_norm_(embedding.parameters(), max_norm=1.0, norm_type=2)
     total_loss.backward()
     optimizer.step()
     lr_scheduler.step()

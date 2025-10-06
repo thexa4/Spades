@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 class HandEmbeddingNet(torch.nn.Module):
-    def __init__(self, output_size, layer_sizes):
+    def __init__(self, output_size, layer_sizes, bias=False):
         super().__init__()
 
         self.layer_sizes = layer_sizes
@@ -11,15 +11,16 @@ class HandEmbeddingNet(torch.nn.Module):
         layers = []
         current_size = 52
         for layer_size in layer_sizes:
-            layers.append(nn.Linear(current_size, layer_size))
+            layers.append(nn.Linear(current_size, layer_size, bias=bias))
             current_size = layer_size
             layers.append(nn.ReLU())
 
         layers.append(nn.BatchNorm1d(current_size))
-        layers.append(nn.Linear(current_size, output_size))
+        layers.append(nn.Linear(current_size, output_size, bias=bias))
         layers.append(nn.ReLU())
         layers.append(nn.BatchNorm1d(current_size))
         self.linear_relu_stack = nn.Sequential(*layers)
+        self.has_bias = bias
     
     def forward(self, x):
         return self.linear_relu_stack(x)
@@ -30,6 +31,7 @@ class HandEmbeddingNet(torch.nn.Module):
             'output_size': self.output_size,
             'weights': self.state_dict(),
             'meta': meta,
+            'bias': self.has_bias,
         }
     
     def save(self, path, meta):
@@ -52,6 +54,6 @@ class HandEmbeddingNet(torch.nn.Module):
         layer_sizes = state_dict['layer_sizes']
         output_size = state_dict['output_size']
         
-        result = HandEmbeddingNet(output_size, layer_sizes).to(device=device)
+        result = HandEmbeddingNet(output_size, layer_sizes, bias=state_dict.get('bias', True)).to(device=device)
         result.load_state_dict(weights)
         return (result, state_dict.get('meta', {}))

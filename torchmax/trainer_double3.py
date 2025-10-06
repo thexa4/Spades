@@ -14,17 +14,39 @@ from models.fullplayer3 import FullPlayer3
 from training_sample import TrainingSample
 from multiprocessing.pool import ThreadPool
 
+torch.set_float32_matmul_precision('medium')
+torch.backends.cudnn.benchmark = True
+
+# No support for TRITON :(
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
+
+
 def train(model, optimizer, lr_scheduler, samples, testset=None, devices=[None]):
     device_models = model.replicate(devices)
     device_samples = []
     total_loss = torch.tensor(0, device=model.device)
     
     for i in range(len(devices)):
-        device_samples.append(TrainingSample.concat(samples[i::len(devices)]).with_device(devices[i]))
+        device_samples.append([x for x in samples[i::len(devices)]])
     
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
     
     def compute_error(game, model, testset=False):
+        bid_total_loss, card_total_loss, bid_stddev, round_losses, round_stddevs = compute_error_inner(game, model, testset)
+
+        return {
+            "total": (bid_total_loss * 26.0 + card_total_loss).to(model.device),
+            "bids": bid_total_loss.item(),
+            "bid_stddev": bid_stddev.item(),
+            "cards": card_total_loss.item(),
+            "rounds": [r.item() for r in round_losses],
+            "round_stddevs": [r.item() for r in round_stddevs],
+        }
+
+    
+    @torch.compile
+    def compute_error_inner(game, model, testset):
         bid_losses = None
         card_losses = []
 
@@ -38,7 +60,8 @@ def train(model, optimizer, lr_scheduler, samples, testset=None, devices=[None])
         other_stddev2 = bid_result["other_score_stddev"] * bid_result["other_score_stddev"]
         other_log_likelyhood = torch.mean(0.5 * torch.log(2 * math.pi * other_stddev2) + torch.square(game.other_outcome[:, 0].float() - other_mean) / (2 * other_stddev2))
 
-        bid_stddev = torch.mean(torch.concat([bid_result["own_score_stddev"], bid_result["other_score_stddev"]]))
+        #bid_stddev = torch.mean(torch.concat([bid_result["own_score_stddev"], bid_result["other_score_stddev"]]))
+        bid_stddev = torch.mean(bid_result["own_score_stddev"])
 
         error = own_log_likelyhood + other_log_likelyhood
         bid_losses = error
@@ -62,56 +85,89 @@ def train(model, optimizer, lr_scheduler, samples, testset=None, devices=[None])
             #error = 0.1 * (own_bag_error + other_bag_error) + own_log_likelyhood + other_log_likelyhood
             error = own_log_likelyhood + other_log_likelyhood
 
-            card_losses.append(error)
+            #card_losses.append(error)
+            card_losses.append(torch.mean(torch.abs(game.own_outcome[:, 0].float() - own_mean)))
             round_losses.append(error)
         
-            round_stddevs.append(torch.mean(torch.concat([card_result["own_score_stddev"], card_result["other_score_stddev"]])))
+            #round_stddevs.append(torch.mean(torch.concat([card_result["own_score_stddev"], card_result["other_score_stddev"]])))
+            round_stddevs.append(torch.mean(card_result["own_score_stddev"]))
 
         bid_total_loss = bid_losses
-        card_total_loss = torch.mean(torch.stack(card_losses))
-
-        return {
-            "total": (bid_total_loss * 26.0 + card_total_loss).to(model.device),
-            "bids": bid_total_loss.item(),
-            "bid_stddev": bid_stddev.item(),
-            "cards": card_total_loss.item(),
-            "rounds": [r.item() for r in round_losses],
-            "round_stddevs": [r.item() for r in round_stddevs],
-        }
+        card_total_loss = torch.mean(torch.stack(round_losses))
+        
+        return (bid_total_loss, card_total_loss, bid_stddev, card_losses, round_stddevs)
 
 
     def do_device(device_id):
         game = device_samples[device_id]
-        return compute_error(game, device_models[device_id])
+        result = []
+        for sample in game:
+            result.append(compute_error(sample.with_device(devices[device_id]), device_models[device_id]))
+        return result
     
-    pool = ThreadPool(len(devices))
-    results = pool.map(do_device, range(len(devices)))
+    def do_one(sample_id):
+        sample = device_samples[0][sample_id].with_device(devices[0])
+        return [compute_error(sample, device_models[0])]
+    
+    if len(devices) == 1:
+        blocks = map(do_one, range(len(device_samples[0])))
+    else:
+        pool = ThreadPool(len(devices))
+        blocks = pool.map(do_device, range(len(devices)))
 
-    total_loss = sum([x['total'].to(device=model.device) for x in results], total_loss)
-    card_loss = statistics.mean([x['cards'] for x in results])
-    bid_loss = statistics.mean([x['bids'] for x in results])
+    card_loss = []
+    bid_loss = []
+    bid_stddevs = []
+    round_matrix = []
+    round_stddev_matrix = []
+    total_losses = []
 
-    bid_stddevs = statistics.mean([x['bid_stddev'] for x in results])
+    for lst in blocks:
+        if len(devices) == 1:
+            loss_scale = len(device_samples[0])
+        else:
+            loss_scale = len(lst)
+        for x in lst:
+            total_loss = x['total'].to(device=model.device)
+            scaled_loss = total_loss / loss_scale
+            scaled_loss.backward()
 
-    round_matrix = [x['rounds'] for x in results]
+            total_losses.append(total_loss.item())
+            del x['total']
+
+            card_loss.append(x['cards'])
+            bid_loss.append(x['bids'])
+            bid_stddevs.append(x['bid_stddev'])
+            round_matrix.append(x['rounds'])
+            round_stddev_matrix.append(x['round_stddevs'])
+
+    total_loss = sum(total_losses)
+    card_loss = statistics.mean(card_loss)
+    bid_loss = statistics.mean(bid_loss)
+
+    bid_stddevs = statistics.mean(bid_stddevs)
+
     rounds = []
-    round_stddev_matrix = [x['round_stddevs'] for x in results]
     round_stddevs = []
     for i in range(13):
         rounds.append(round(statistics.mean([r[i] for r in round_matrix]), ndigits=1))
         round_stddevs.append(round(statistics.mean([r[i] for r in round_stddev_matrix]), ndigits=1))
+
+    #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0, norm_type=2)
+
+    optimizer.step()
 
     test_bid_loss = -1
     test_card_losses = [-1 for _ in range (13)]
     if testset != None:
         game = testset
 
+        device_models[0].eval()
         outcome = compute_error(game, device_models[0], testset=True)
+        device_models[0].train()
         test_bid_loss = outcome["bids"]
         test_card_losses = outcome["rounds"]
 
-    total_loss.backward()
-    optimizer.step()
     lr_scheduler.step()
     sys.stdout.write('_')
     sys.stdout.flush()
@@ -168,30 +224,25 @@ def do_q_generation(q1_models, q2_models, temperature=1000, caution=0.1, game_ba
                     steps=100, model_prob=0.2, lr=None, reuse_factor=10, seating_offset=0, seat_batch=2, folder='results',
                     bid_layout=None, card_layout=None, hand_embedding_path=None, played_embedding_path=None,
                     train_devices=['cuda:0'], store_device='cpu', model_retention=0, hand_detach=False,
-                    played_detach=False):
+                    played_detach=False, retain_embedding=False):
         
     meta = {
         'mc': len(q1_models) + len(q2_models),
         't': temperature,
-        'gbatch': game_batch_size,
-        'nseat': num_seatings,
-        'model_prob': model_prob,
-        'lr': lr,
-        'reuse': reuse_factor,
-        'seat_offset': seating_offset,
-        'sbatch': seat_batch,
+        #'gbatch': game_batch_size,
+        #'nseat': num_seatings,
+        #'model_prob': model_prob,
+        #'lr': lr,
+        #'reuse': reuse_factor,
+        #'seat_offset': seating_offset,
+        #'sbatch': seat_batch,
         'bid_layers': bid_layout,
         'card_layers': card_layout,
     }
     
 
     def do_generation(q, models, guiding_model):
-        training_model = FullPlayer3(0, caution, bid_layout, card_layout, hand_embedding_path=hand_embedding_path, played_embedding_path=played_embedding_path, device=train_devices[0])
-        if hand_detach:
-            training_model.detach_handnet()
-        if played_detach:
-            training_model.detach_playednet()
-
+        training_model = FullPlayer3(0, caution, bid_layout, card_layout, hand_embedding_path=hand_embedding_path, played_embedding_path=played_embedding_path, bias=False, device=train_devices[0])
         optimizer = torch.optim.AdamW(training_model.parameters(), lr=lr)
 
         if model_retention > 0 and len(models) > 1:
@@ -201,6 +252,10 @@ def do_q_generation(q1_models, q2_models, temperature=1000, caution=0.1, game_ba
                 optimizer.load_state_dict(models[-1].optim_state)
             else:
                 print(f"Previous q{q} does not have optimizer state")
+
+        if retain_embedding and len(models) > 1:
+            training_model.handnet.load_state_dict(models[-1].handnet.state_dict())
+            training_model.playednet.load_state_dict(models[-1].playednet.state_dict())
 
         curstep = 0
         if os.path.isfile(f"{folder}/q{q}_ckpt.pt3"):
@@ -218,6 +273,12 @@ def do_q_generation(q1_models, q2_models, temperature=1000, caution=0.1, game_ba
     
         if curstep >= steps:
             return training_model
+        
+        training_model.reattach_embeddings()
+        if hand_detach or curstep < steps // 4:
+            training_model.detach_handnet()
+        if played_detach or curstep < steps // 4:
+            training_model.detach_playednet()
 
         batch_count = math.ceil((reuse_factor * num_seatings + seating_offset) / seat_batch + 0.5)
         last_batch_step = -1
@@ -299,7 +360,7 @@ def do_q_generation(q1_models, q2_models, temperature=1000, caution=0.1, game_ba
             for _ in range(num_seatings):
                 resevoir.popleft()
             samples = None
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         optimizer = None
 
         return training_model.with_temperature(0)
@@ -351,14 +412,15 @@ def start_training(folder):
         "played_detach": False,
         "store_device": "cpu",
         "model_retention": 0,
-        "model_version": "fullplayer/v2",
+        "model_version": "fullplayer/v3",
+        "retain_embedding": False,
     }
     serialized = json.dumps(config, indent=4)
     with open(f"{folder}/state.json", "w") as f:
         f.write(serialized)
         f.write("\n")
 
-def continue_training(folder='results'):
+def continue_training(folder='results', endgeneration=None):
     config = None
     with open(f"{folder}/state.json") as f:
         config = json.load(f)
@@ -423,12 +485,18 @@ def continue_training(folder='results'):
                         model_retention=config["model_retention"],
                         hand_detach=config["hand_detach"],
                         played_detach=config["played_detach"],
+                        retain_embedding=config.get("retain_embedding", False),
                        )
         new_q1 = available_models_q1[-1]
         new_q2 = available_models_q2[-1]
 
         new_q1.save(f"{folder}/{str(current_generation).zfill(4)}-q1.pt3")
         new_q2.save(f"{folder}/{str(current_generation).zfill(4)}-q2.pt3")
+
+        new_q1.playednet.save(f"{folder}/played-q1.emb", {})
+        new_q2.playednet.save(f"{folder}/played-q2.emb", {})
+        new_q1.handnet.save(f"{folder}/hand-q1.emb", {})
+        new_q2.handnet.save(f"{folder}/hand-q2.emb", {})
         
         with open(f"{folder}/state.json") as f:
             config = json.load(f)
@@ -437,7 +505,15 @@ def continue_training(folder='results'):
             f.write(json.dumps(config, indent=4))
             f.write("\n")
 
+        if endgeneration != None:
+            if current_generation + 1 == endgeneration:
+                exit(0)
+
 if not os.path.isfile(f"{sys.argv[1]}/state.json"):
     start_training(sys.argv[1])
 
-continue_training(sys.argv[1])
+endgeneration=None
+if len(sys.argv) >= 2:
+    endgeneration = int(sys.argv[2])
+continue_training(sys.argv[1], endgeneration)
+

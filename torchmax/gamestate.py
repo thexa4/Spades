@@ -239,6 +239,9 @@ class GameState:
         return GameState(**fields, mask=torch.concat([x.mask for x in active_parts], 0))
 
     def with_device(self, device):
+        if self.my_hand.device == device:
+            return self
+
         fields = {k: v.to(device=device) for k,v in self.fields().items() if v != None}
         return GameState(**fields, mask=self.mask.to(device=device))
 

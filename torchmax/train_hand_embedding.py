@@ -10,11 +10,11 @@ import pytorch_metric_learning.regularizers
 margin = 0.5
 #output_size = 1024
 #layers = [1024, 1024, 1024]
-output_size = 128
-layers = [128, 128, 128]
+output_size = 160
+layers = [160, 160, 160]
 batch = 1024 * 1
 summation_steps = 1
-device = 'cuda:0'
+device = 'cpu'
 epochs = 300
 
 embedding = HandEmbeddingNet(output_size, layers).to(device)
@@ -69,6 +69,7 @@ for i in range(epochs):
     curloss = total_loss.item()
     print(f"lr {lr_scheduler.get_last_lr()}: {curloss}")
     total_loss.backward()
+    torch.nn.utils.clip_grad_norm_(embedding.parameters(), max_norm=1.0, norm_type=2)
     optimizer.step()
     lr_scheduler.step()
 

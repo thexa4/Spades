@@ -18,6 +18,22 @@ class RandomPlayer:
         return list()
     
     def bid(self, gamestate, prediction_bid_overrides=None):
+        chosen_bids, own_scores, other_scores = self.bid_inner(gamestate)
+        
+        if prediction_bid_overrides != None:
+            chosen_bids = prediction_bid_overrides.to(device=self.device)
+
+        own_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_bids, :] * 20
+        other_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_bids, :] * 20
+
+        return {
+            "bids": chosen_bids,
+            "own_score_prediction": own_score_predictions,
+            "other_score_prediction": other_score_predictions,
+        }
+
+    @torch.compile
+    def bid_inner(self, gamestate):
         stack_items = [
             gamestate.my_hand,
             #gamestate.spades_played,
@@ -57,19 +73,28 @@ class RandomPlayer:
         score_softmax = torch.nn.functional.softmax(score_delta / self.temperature, 1)
         
         chosen_bids = torch.multinomial(score_softmax, 1).squeeze()
-        if prediction_bid_overrides != None:
-            chosen_bids = prediction_bid_overrides.to(device=self.device)
 
-        own_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_bids, :] * 20
-        other_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_bids, :] * 20
+        return (chosen_bids, own_scores, other_scores)
+
+
+    def play(self, gamestate, allowed_cards, prediction_indexes_overrides=None):
+        chosen_cards, own_scores, other_scores = self.play_inner(gamestate, allowed_cards)
+        
+        if prediction_indexes_overrides != None:
+            chosen_cards = prediction_indexes_overrides.to(device=self.device)
+
+        own_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_cards, :] * 20
+        other_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_cards, :] * 20
 
         return {
-            "bids": chosen_bids,
+            "cards": chosen_cards,
             "own_score_prediction": own_score_predictions,
             "other_score_prediction": other_score_predictions,
         }
 
-    def play(self, gamestate, allowed_cards, prediction_indexes_overrides=None):
+    
+    @torch.compile
+    def play_inner(self, gamestate, allowed_cards):
         stack_items = [
             gamestate.my_hand,
             gamestate.spades_played.unsqueeze(1),
@@ -105,28 +130,13 @@ class RandomPlayer:
         other_scores = torch.reshape(card_data[:, 104:208], (-1, 52, 2))
 
         score_delta = own_scores[:, :, 0] - other_scores[:, :, 0]
-        softmax_exponents = torch.exp(score_delta.double() / self.temperature) * allowed_cards.to(device=self.device)
+        softmax_exponents = torch.exp(score_delta.float() / self.temperature) * allowed_cards.to(device=self.device)
         softmax_sum = torch.sum(softmax_exponents, 1)
         score_softmax = softmax_exponents / torch.outer(softmax_sum, torch.ones((52,), device=self.device))
         
-        if torch.any(torch.isnan(score_softmax)):
-            print(sum(allowed_cards))
-            print(score_delta)
-            print(softmax_exponents)
-            print(softmax_sum)
-            print(score_softmax)
         chosen_cards = torch.multinomial(score_softmax, 1).squeeze()
-        if prediction_indexes_overrides != None:
-            chosen_cards = prediction_indexes_overrides.to(device=self.device)
-
-        own_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_cards, :] * 20
-        other_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_cards, :] * 20
-
-        return {
-            "cards": chosen_cards,
-            "own_score_prediction": own_score_predictions,
-            "other_score_prediction": other_score_predictions,
-        }
+        
+        return (chosen_cards, own_scores, other_scores)
     
     def with_device(self, device):
         result = RandomPlayer(device=device)

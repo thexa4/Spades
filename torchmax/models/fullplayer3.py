@@ -1,6 +1,7 @@
 import copy
 import torch
 import math
+import os
 from torch import nn
 try:
     from models.hand_embedding import HandEmbeddingNet
@@ -9,52 +10,71 @@ except:
     from torchmax.models.hand_embedding import HandEmbeddingNet
     from torchmax.models.played_embedding import PlayedEmbeddingNet
 
-
 class BidNet(torch.nn.Module):
-    def __init__(self, input_size, layer_sizes):
+    def __init__(self, input_size, layer_sizes, bias=True, addition_size=0):
         super().__init__()
 
         self.layer_sizes = layer_sizes
         
         layers = []
         current_size = input_size
+        layers.append(nn.BatchNorm1d(current_size))
         for layer_size in layer_sizes:
-            layers.append(nn.Linear(current_size, layer_size))
+            layers.append(nn.Linear(current_size, layer_size, bias=bias))
             current_size = layer_size
             layers.append(nn.ReLU())
             layers.append(nn.BatchNorm1d(current_size))
-        layers.append(nn.Linear(current_size, 13 * 4))
 
-        self.linear_relu_stack = nn.Sequential(*layers)
+        if addition_size > 0:
+            self.linear_relu_stack = nn.Sequential(*layers)
+            self.output = nn.Linear(current_size + addition_size, 13 * 4)
+        else:
+            layers.append(nn.Linear(current_size, 13 * 4))
+            self.linear_relu_stack = nn.Sequential(*layers)
+            self.output = None
     
-    def forward(self, x):
-        return self.linear_relu_stack(x)
+    def forward(self, x, predictions = None):
+        x = self.linear_relu_stack(x)
+        if predictions != None:
+            x = torch.cat((x, predictions), dim=1)
+            return self.output(x)
+        return x
 
 class CardNet(torch.nn.Module):
-    def __init__(self, input_size, layer_sizes):
+    def __init__(self, input_size, layer_sizes, bias=True, addition_size=0):
         super().__init__()
 
         self.layer_sizes = layer_sizes
 
         layers = []
         current_size = input_size
+        layers.append(nn.BatchNorm1d(current_size))
         for layer_size in layer_sizes:
-            layers.append(nn.Linear(current_size, layer_size))
+            layers.append(nn.Linear(current_size, layer_size, bias=bias))
             current_size = layer_size
             layers.append(nn.ReLU())
             layers.append(nn.BatchNorm1d(current_size))
-        layers.append(nn.Linear(current_size, 52 * 6))
-        
-        self.linear_relu_stack = nn.Sequential(*layers)
+
+        if addition_size > 0:
+            self.linear_relu_stack = nn.Sequential(*layers)
+            self.output = nn.Linear(current_size + addition_size, 52 * 4)
+        else:
+            layers.append(nn.Linear(current_size, 52 * 4))
+            self.linear_relu_stack = nn.Sequential(*layers)
+            self.output = None
     
-    def forward(self, x):
-        return self.linear_relu_stack(x)
+    def forward(self, x, predictions = None):
+        x = self.linear_relu_stack(x)
+        if predictions != None:
+            x = torch.cat((x, predictions), dim=1)
+            return self.output(x)
+        return x
 
 class FullPlayer3:
-    BID_INPUT_SIZE=80
-    CARD_INPUT_SIZE=217
+    BID_INPUT_SIZE=82
+    CARD_INPUT_SIZE=253
 
-    def __init__(self, temperature, caution, bid_layout, card_layout, hand_embedding_path=None, hand_embedding_net=None, played_embedding_path=None, played_embedding_net=None, device=None):
+    def __init__(self, temperature, caution, bid_layout, card_layout, hand_embedding_path=None, hand_embedding_net=None, played_embedding_path=None, played_embedding_net=None, bias=False, add_outcomes=False, device=None):
         self.temperature = min(100, max(temperature, 0.01))
         self.bid_layout = bid_layout
         self.card_layout = card_layout
@@ -74,8 +94,12 @@ class FullPlayer3:
         else:
             self.playednet = played_embedding_net.to(device)
         
-        self.bidnet = BidNet(self.BID_INPUT_SIZE + self.handnet.output_size, bid_layout).to(device)
-        self.cardnet = CardNet(self.CARD_INPUT_SIZE + 2 * self.handnet.output_size + 4 * self.playednet.output_size, card_layout).to(device)
+        addition_size = 0
+        if add_outcomes:
+            addition_size = 2
+
+        self.bidnet = BidNet(self.BID_INPUT_SIZE + self.handnet.output_size, bid_layout, bias=bias, addition_size=addition_size).to(device)
+        self.cardnet = CardNet(self.CARD_INPUT_SIZE + 2 * self.handnet.output_size + 4 * self.playednet.output_size, card_layout, bias=bias, addition_size=addition_size).to(device)
         self.device = device
         self.optim_state = None
         self.debug = False
@@ -104,6 +128,8 @@ class FullPlayer3:
             [1.0, 1.0, 1.0, 1.0],
         ], device=device)
         self.player_embedding_matrix.requires_grad_(False)
+        self.has_bias = bias
+        self.add_outcomes = add_outcomes
 
     def with_temperature(self, temperature):
         result = FullPlayer3(temperature, self.caution, self.bid_layout, self.card_layout, self.hand_embedding_path, self.hand_embedding_net, self.played_embedding_path, self.played_embedding_net, device=self.device)
@@ -115,8 +141,38 @@ class FullPlayer3:
 
     def parameters(self):
         return list(self.handnet.parameters()) + list(self.bidnet.parameters()) + list(self.cardnet.parameters())
-    
+
     def bid(self, gamestate, prediction_bid_overrides=None):
+        chosen_bids, own_scores, other_scores = self.bid_inner(gamestate)
+
+        if prediction_bid_overrides != None:
+            chosen_bids = prediction_bid_overrides.to(device=self.device)
+
+        own_raw_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_bids, :]
+        other_raw_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_bids, :]
+        
+        own_score_predictions_mean = torch.tanh(own_raw_score_predictions[:, 0]) * 30
+        other_score_predictions_mean = torch.tanh(other_raw_score_predictions[:, 0]) * 30
+        
+        own_score_predictions_stddev = torch.sigmoid(own_raw_score_predictions[:, 1]) * 30
+        other_score_predictions_stddev = torch.sigmoid(other_raw_score_predictions[:, 1]) * 30
+
+        if self.debug:
+            import numpy
+            print(numpy.rint(chosen_bids.detach().numpy()))
+            print(score_softmax.detach().numpy())
+            print(numpy.rint((score_delta * 30).detach().numpy()))
+
+        return {
+            "bids": chosen_bids,
+            "own_score_mean": own_score_predictions_mean,
+            "other_score_mean": other_score_predictions_mean,
+            "own_score_stddev": own_score_predictions_stddev,
+            "other_score_stddev": other_score_predictions_stddev,
+        }
+
+    @torch.compile
+    def bid_inner(self, gamestate):
         hand_summary = self.handnet.forward(gamestate.my_hand.float())
 
         my_score_rotation_x = torch.sin(gamestate.team_score_mine[:, 1].float() / 10.0 * math.pi).unsqueeze(1)
@@ -125,6 +181,9 @@ class FullPlayer3:
         other_score_rotation_y = torch.cos(gamestate.team_score_other[:, 1].float() / 10.0 * math.pi).unsqueeze(1)
 
         player_embedding = torch.nn.functional.embedding(gamestate.players_left.int(), self.player_embedding_matrix)
+
+        own_best_delta = gamestate.team_bid.float().to(device=self.device) + torch.where((gamestate.team_bid.int().to(device=self.device) == 0), 10.0, 0.0)
+        other_best_delta = gamestate.other_team_bid.float().to(device=self.device) + torch.where((gamestate.bid_left.int().to(device=self.device) == 0), 10.0, 0.0) + torch.where((gamestate.bid_right.int().to(device=self.device) == 0), 10.0, 0.0)
 
         stack_items = [
             hand_summary,
@@ -156,10 +215,22 @@ class FullPlayer3:
             #gamestate.trick_wins_left,
             #gamestate.trick_wins_right,
             #gamestate.cards_seen,
+            torch.unsqueeze(own_best_delta, 1),
+            torch.unsqueeze(other_best_delta, 1),
         ]
+
         input_data = torch.concat([item.float().to(device=self.device) for item in stack_items], 1)
 
-        bid_data = self.bidnet(input_data)
+        if self.add_outcomes:
+            outcomes = torch.stack((
+                own_best_delta,
+                other_best_delta,
+            ), dim=1)
+
+            bid_data = self.bidnet(input_data, outcomes)
+        else:
+            bid_data = self.bidnet(input_data)
+
         own_scores = torch.reshape(bid_data[:, 0:26], (-1, 13, 2))
         other_scores = torch.reshape(bid_data[:, 26:52], (-1, 13, 2))
 
@@ -170,34 +241,36 @@ class FullPlayer3:
         score_delta = expected_own_score - expected_other_score * other_interest
         score_softmax = torch.nn.functional.softmax(score_delta / self.temperature, 1)
         
-        chosen_bids = torch.multinomial(torch.nan_to_num(score_softmax, neginf=0.0), 1).squeeze()
-        if prediction_bid_overrides != None:
-            chosen_bids = prediction_bid_overrides.to(device=self.device)
-
-        own_raw_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_bids, :]
-        other_raw_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_bids, :]
+        chosen_bids = torch.multinomial(torch.clamp(torch.nan_to_num(score_softmax, neginf=1e-10), min=1e-10), 1).squeeze()
         
-        own_score_predictions_mean = torch.tanh(own_raw_score_predictions[:, 0]) * 30
-        other_score_predictions_mean = torch.tanh(other_raw_score_predictions[:, 0]) * 30
+        return (chosen_bids, own_scores, other_scores)
+
+    def play(self, gamestate, allowed_cards, prediction_indexes_overrides=None):
+        chosen_cards, own_scores, other_scores = self.play_inner(gamestate, allowed_cards)
+
+        if prediction_indexes_overrides != None:
+            chosen_cards = prediction_indexes_overrides.to(device=self.device)
+
+        own_raw_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_cards, :]
+        own_score_predictions_major = torch.tanh(own_raw_score_predictions[:, 0]) * 30
+
+        other_raw_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_cards, :]
+        other_score_predictions_major = torch.tanh(other_raw_score_predictions[:, 0]) * 30
         
         own_score_predictions_stddev = torch.sigmoid(own_raw_score_predictions[:, 1]) * 30
         other_score_predictions_stddev = torch.sigmoid(other_raw_score_predictions[:, 1]) * 30
 
-        if self.debug:
-            import numpy
-            print(numpy.rint(chosen_bids.detach().numpy()))
-            print(score_softmax.detach().numpy())
-            print(numpy.rint((score_delta * 30).detach().numpy()))
-
         return {
-            "bids": chosen_bids,
-            "own_score_mean": own_score_predictions_mean,
-            "other_score_mean": other_score_predictions_mean,
+            "cards": chosen_cards,
             "own_score_stddev": own_score_predictions_stddev,
             "other_score_stddev": other_score_predictions_stddev,
+            "own_score_mean": own_score_predictions_major,
+            "other_score_mean": other_score_predictions_major,
         }
 
-    def play(self, gamestate, allowed_cards, prediction_indexes_overrides=None):
+
+    @torch.compile
+    def play_inner(self, gamestate, allowed_cards):
         hand_summary = self.handnet(gamestate.my_hand.float())
 
         played_summary_me = self.playednet.forward(gamestate.cards_played_me.float())
@@ -213,6 +286,19 @@ class FullPlayer3:
         other_score_rotation_y = torch.cos(gamestate.team_score_other[:, 1].float() / 10.0 * math.pi).unsqueeze(1)
 
         player_embedding = torch.nn.functional.embedding(gamestate.players_left.int(), self.player_embedding_matrix)
+            
+        own_best_delta = gamestate.team_bid.float().to(device=self.device) + torch.where((gamestate.bid_mine.int().to(device=self.device) == 0), 10.0, 0.0) + torch.where((gamestate.bid_teammate.int().to(device=self.device) == 0), 10.0, 0.0)
+        other_best_delta = gamestate.other_team_bid.float().to(device=self.device) + torch.where((gamestate.bid_left.int().to(device=self.device) == 0), 10.0, 0.0) + torch.where((gamestate.bid_right.int().to(device=self.device) == 0), 10.0, 0.0)
+
+        team_tricks = gamestate.trick_wins_me.int() + gamestate.trick_wins_teammate.int()
+        other_team_tricks = gamestate.trick_wins_left.int() + gamestate.trick_wins_right.int()
+
+        own_bet_ratio = (gamestate.team_bid.float().to(device=self.device) + 1.0) / (team_tricks.float().to(device=self.device) + 1.0)
+        other_bet_ratio = (gamestate.other_team_bid.float().to(device=self.device) + 1.0) / (team_tricks.float().to(device=self.device) + 1.0)
+        nil_failed_me = torch.where(gamestate.bid_mine.int().to(device=self.device) == 0, 1.0, 0.0) * torch.where(gamestate.trick_wins_me.int().to(device=self.device) == 0, 1.0, 0.0)
+        nil_failed_teammate = torch.where(gamestate.bid_teammate.int().to(device=self.device) == 0, 1.0, 0.0) * torch.where(gamestate.trick_wins_teammate.int().to(device=self.device) == 0, 1.0, 0.0)
+        nil_failed_left = torch.where(gamestate.bid_left.int().to(device=self.device) == 0, 1.0, 0.0) * torch.where(gamestate.trick_wins_left.int().to(device=self.device) == 0, 1.0, 0.0)
+        nil_failed_right = torch.where(gamestate.bid_right.int().to(device=self.device) == 0, 1.0, 0.0) * torch.where(gamestate.trick_wins_right.int().to(device=self.device) == 0, 1.0, 0.0)
 
         stack_items = [
             hand_summary,
@@ -243,47 +329,46 @@ class FullPlayer3:
             torch.nn.functional.embedding(gamestate.trick_wins_teammate.int(), self.bid_encoding_matrix),
             torch.nn.functional.embedding(gamestate.trick_wins_left.int(), self.bid_encoding_matrix),
             torch.nn.functional.embedding(gamestate.trick_wins_right.int(), self.bid_encoding_matrix),
-            cards_missing_summary
+            torch.nn.functional.embedding(team_tricks, self.bid_encoding_matrix),
+            torch.nn.functional.embedding(other_team_tricks, self.bid_encoding_matrix),
+            cards_missing_summary,
+            torch.unsqueeze(own_best_delta, 1),
+            torch.unsqueeze(other_best_delta, 1),
+            torch.unsqueeze(own_bet_ratio, 1),
+            torch.unsqueeze(other_bet_ratio, 1),
+            torch.unsqueeze(nil_failed_me, 1),
+            torch.unsqueeze(nil_failed_teammate, 1),
+            torch.unsqueeze(nil_failed_left, 1),
+            torch.unsqueeze(nil_failed_right, 1),
         ]
+
         input_data = torch.concat([item.float().to(device=self.device) for item in stack_items], 1)
+        
+        if self.add_outcomes:
+            outcomes = torch.stack((
+                own_best_delta,
+                other_best_delta,
+            ), dim=1)
 
-        card_data = self.cardnet(input_data).double()
-        own_scores = torch.reshape(card_data[:, 0:156], (-1, 52, 3))
-        other_scores = torch.reshape(card_data[:, 156:312], (-1, 52, 3))
+            card_data = self.cardnet(input_data, outcomes).float()
+        else:
+            card_data = self.cardnet(input_data).float()
 
-        expected_own_score = torch.tanh(own_scores[:, :, 0]) - self.caution * torch.sigmoid(own_scores[:, :, 2])
-        expected_other_score = torch.tanh(other_scores[:, :, 0]) + self.caution * torch.sigmoid(other_scores[:, :, 2])
+        own_scores = torch.reshape(card_data[:, 0:104], (-1, 52, 2))
+        other_scores = torch.reshape(card_data[:, 104:208], (-1, 52, 2))
+
+        expected_own_score = torch.tanh(own_scores[:, :, 0]) - self.caution * torch.sigmoid(own_scores[:, :, 1])
+        expected_other_score = torch.tanh(other_scores[:, :, 0]) + self.caution * torch.sigmoid(other_scores[:, :, 1])
 
         #print([torch.tanh(own_scores[:, :, 0]), torch.sigmoid(own_scores[:, :, 1])])
 
         score_delta = expected_own_score - expected_other_score * 0.2
 
-        softmax_exponents = torch.exp(score_delta.double() / self.temperature) * allowed_cards.to(device=self.device)
+        softmax_exponents = torch.clamp(torch.nan_to_num(torch.exp(score_delta.float() / self.temperature)), min=1e-10) * allowed_cards.to(device=self.device)
         
-        chosen_cards = torch.multinomial(torch.nan_to_num(softmax_exponents, neginf=0.0), 1).squeeze()
-        if prediction_indexes_overrides != None:
-            chosen_cards = prediction_indexes_overrides.to(device=self.device)
+        chosen_cards = torch.multinomial(softmax_exponents, 1).squeeze()
 
-        own_raw_score_predictions = own_scores[torch.arange(own_scores.size(0)), chosen_cards, :]
-        own_score_predictions_major = torch.tanh(own_raw_score_predictions[:, 0]) * 30
-        #own_score_predictions_minor = torch.sigmoid(own_raw_score_predictions[:, 1]) * 12 - 1
-
-        other_raw_score_predictions = other_scores[torch.arange(other_scores.size(0)), chosen_cards, :]
-        other_score_predictions_major = torch.tanh(other_raw_score_predictions[:, 0]) * 30
-        #other_score_predictions_minor = torch.sigmoid(other_raw_score_predictions[:, 1]) * 12 - 1
-        
-        own_score_predictions_stddev = torch.sigmoid(own_raw_score_predictions[:, 2]) * 30
-        other_score_predictions_stddev = torch.sigmoid(other_raw_score_predictions[:, 2]) * 30
-
-        return {
-            "cards": chosen_cards,
-            "own_score_stddev": own_score_predictions_stddev,
-            "other_score_stddev": other_score_predictions_stddev,
-            #"own_score_bags": own_score_predictions_minor,
-            #"other_score_bags": other_score_predictions_minor,
-            "own_score_mean": own_score_predictions_major,
-            "other_score_mean": other_score_predictions_major,
-        }
+        return (chosen_cards, own_scores, other_scores)
     
     def with_device(self, device):
         if self.device == device:
@@ -303,6 +388,12 @@ class FullPlayer3:
         self.cardnet.eval()
         self.handnet.eval()
         self.playednet.eval()
+
+    def train(self):
+        self.bidnet.train()
+        self.cardnet.train()
+        self.handnet.train()
+        self.playednet.train()
 
     def replicate(self, devices):
         if len(devices) == 1:
@@ -364,11 +455,21 @@ class FullPlayer3:
 
         return result.with_device(self.device)
 
+    def reattach_embeddings(self):
+        self.handnet.train()
+        self.playednet.train()
+        for param in self.handnet.parameters():
+            param.requires_grad_(True)
+        for param in self.playednet.parameters():
+            param.requires_grad_(True)
+
     def detach_handnet(self):
+        self.handnet.eval()
         for param in self.handnet.parameters():
             param.requires_grad_(False)
 
     def detach_playednet(self):
+        self.playednet.eval()
         for param in self.playednet.parameters():
             param.requires_grad_(False)
     
@@ -385,7 +486,7 @@ class FullPlayer3:
 
         hand_embedding_net = HandEmbeddingNet.loadState(state_dict['hand_embedding'], device=device)[0]
         played_embedding_net = PlayedEmbeddingNet.loadState(state_dict['played_embedding'], device=device)[0]
-        result = FullPlayer3(temperature, caution, bid_layout, card_layout, hand_embedding_path=None, hand_embedding_net=hand_embedding_net, played_embedding_path=None, played_embedding_net=played_embedding_net, device=device)
+        result = FullPlayer3(temperature, caution, bid_layout, card_layout, hand_embedding_path=None, hand_embedding_net=hand_embedding_net, played_embedding_path=None, played_embedding_net=played_embedding_net, bias=state_dict.get('bias', True), add_outcomes=state_dict.get('add_outcomes', False), device=device)
 
         result.handnet.load_state_dict(hand_weights)
         result.bidnet.load_state_dict(bid_weights)
@@ -402,7 +503,10 @@ class FullPlayer3:
             'hand_embedding': self.handnet.saveData({}),
             'played_embedding': self.playednet.saveData({}),
             'meta': meta,
+            'bias': self.has_bias,
+            'add_outcomes': self.add_outcomes,
         }
         if self.optim_state != None:
             state_dict['optimizer'] = self.optim_state
-        torch.save(state_dict, path)
+        torch.save(state_dict, path + '.new')
+        os.replace(path + '.new', path)
